@@ -13,7 +13,6 @@ const Login = () => {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingReset, setIsLoadingReset] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const { login, user } = useContext(AuthContext);
   const navigate = useNavigate();
@@ -82,33 +81,6 @@ const Login = () => {
     }
   };
 
-  const redefinirSenha = async () => {
-    if (!email) {
-      setError("Por favor, insira seu email para redefinir a senha.");
-      return;
-    }
-    
-    if (isLoadingReset) return; // Prevenir múltiplos cliques
-    
-    try {
-      setIsLoadingReset(true);
-      setError("");
-      setSuccessMessage("");
-      
-      const response = await axios.post(`${API_BASE_URL}/api/reset-password`, {
-        email
-      });
-      
-      setSuccessMessage("Email de redefinição de senha enviado com sucesso!");
-      console.log("Email de redefinição enviado para:", email);
-    } catch (error) {
-      console.error("Erro ao enviar email de redefinição:", error);
-      const errorMessage = error.response?.data?.error || "Erro ao enviar email de redefinição. Verifique o email fornecido.";
-      setError(errorMessage);
-    } finally {
-      setIsLoadingReset(false);
-    }
-  };
 
   return (
     <div className="auth-container">
@@ -130,7 +102,7 @@ const Login = () => {
                 placeholder="Digite seu email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading || isLoadingReset}
+                disabled={isLoading}
               />
               <span className="auth-input-icon"><i className="bi bi-envelope-fill"></i></span>
             </div>
@@ -146,7 +118,7 @@ const Login = () => {
                 placeholder="Digite sua senha"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
-                disabled={isLoading || isLoadingReset}
+                disabled={isLoading}
                 onKeyPress={(e) => e.key === 'Enter' && !isLoading && fazerLogin()}
               />
               <span className="auth-input-icon"><i className="bi bi-lock-fill"></i></span>
@@ -161,14 +133,14 @@ const Login = () => {
                 id="remember"
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
-                disabled={isLoading || isLoadingReset}
+                disabled={isLoading}
               />
               <label className="auth-form-check-label" htmlFor="remember">Lembrar-me</label>
             </div>
             <button 
               className="auth-btn-primary" 
               onClick={fazerLogin}
-              disabled={isLoading || isLoadingReset}
+              disabled={isLoading}
             >
               {isLoading ? (
                 <><i className="bi bi-arrow-clockwise" style={{animation: 'spin 1s linear infinite'}}></i> Entrando...</>
@@ -183,14 +155,10 @@ const Login = () => {
           <div className="auth-link-container">
             <button 
               className="auth-btn-professional" 
-              onClick={redefinirSenha}
-              disabled={isLoading || isLoadingReset}
+              onClick={() => navigate('/forgot-password', { state: { email } })}
+              disabled={isLoading}
             >
-              {isLoadingReset ? (
-                <><i className="bi bi-arrow-clockwise" style={{animation: 'spin 1s linear infinite'}}></i> Enviando...</>
-              ) : (
-                'Esqueci minha senha'
-              )}
+              Esqueci minha senha
             </button>
             <span className="auth-separator"></span>
             <Link to="/cadastro" className="auth-btn-professional">Registrar um novo membro</Link>

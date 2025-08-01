@@ -410,10 +410,15 @@ app.post('/api/horas-trabalhadas', authenticateToken, async (req, res) => {
   }
 });
 
-// Endpoint de redefinição de senha
+// Armazenar tokens de reset temporários (em produção, usar banco de dados)
+const resetTokens = new Map();
+
+// Endpoint de redefinição de senha - solicitar token
 app.post("/api/reset-password", async (req, res) => {
   try {
     const { email } = req.body;
+    console.log('[RESET-PASSWORD] Solicitação de reset para:', email);
+    
     if (!email) {
       return res.status(400).json({ error: "Email é obrigatório" });
     }
@@ -421,17 +426,234 @@ app.post("/api/reset-password", async (req, res) => {
     // Verificar se o email existe no SQLite
     const user = await getUserByEmail(email);
     if (!user) {
-      return res.status(404).json({ error: "Email não encontrado" });
+      // Por segurança, não revelamos se o email existe ou não
+      console.log('[RESET-PASSWORD] Email não encontrado:', email);
+      return res.status(200).json({ message: "Se o email existir, você receberá as instruções de redefinição" });
     }
 
-    res.status(200).json({ message: "Email de redefinição enviado com sucesso" });
+    // Gerar token único
+    const resetToken = uuidv4();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // Expira em 30 minutos
+    
+    // Armazenar token temporariamente
+    resetTokens.set(resetToken, {
+      userId: user.uid,
+      email: user.email,
+      expiresAt
+    });
+    
+    console.log('[RESET-PASSWORD] Token gerado:', resetToken, 'para usuário:', user.uid);
+    console.log('[RESET-PASSWORD] Expira em:', expiresAt.toISOString());
+    
+    // Em desenvolvimento, retornamos o token diretamente
+    // Em produção, este token seria enviado por email
+    if (process.env.NODE_ENV === 'development') {
+      res.status(200).json({ 
+        message: "Token de redefinição gerado (modo de desenvolvimento)",
+        resetToken: resetToken, // REMOVER EM PRODUÇÃO
+        resetUrl: `http://localhost:5173/reset-password?token=${resetToken}` // REMOVER EM PRODUÇÃO
+      });
+    } else {
+      // TODO: Implementar envio de email aqui
+      res.status(200).json({ message: "Email de redefinição enviado com sucesso" });
+    }
   } catch (error) {
-    console.error("Erro na redefinição de senha:", error.message);
+    console.error("[RESET-PASSWORD] Erro na redefinição de senha:", error.message);
     res.status(500).json({ error: "Erro ao processar redefinição de senha" });
   }
 });
 
-// ===== ENDPOINTS PARA TAREFAS =====
+// Endpoint para verificar validade do token
+app.get("/api/reset-password/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    console.log('[VERIFY-TOKEN] Verificando token:', token);
+    
+    const tokenData = resetTokens.get(token);
+    if (!tokenData) {
+      console.log('[VERIFY-TOKEN] Token não encontrado');
+      return res.status(400).json({ error: "Token inválido ou expirado" });
+    }
+    
+    if (new Date() > tokenData.expiresAt) {
+      console.log('[VERIFY-TOKEN] Token expirado');
+      resetTokens.delete(token);
+      return res.status(400).json({ error: "Token expirado" });
+    }
+    
+    console.log('[VERIFY-TOKEN] Token válido para usuário:', tokenData.email);
+    res.status(200).json({ 
+      valid: true,
+      email: tokenData.email
+    });
+  } catch (error) {
+    console.error("[VERIFY-TOKEN] Erro ao verificar token:", error.message);
+    res.status(500).json({ error: "Erro ao verificar token" });
+  }
+});
+
+// Endpoint para redefinir senha com token
+app.post("/api/reset-password/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { newPassword } = req.body;
+    
+    console.log('[RESET-PASSWORD-CONFIRM] Redefinindo senha com token:', token);
+    
+    if (!newPassword) {
+      return res.status(400).json({ error: "Nova senha é obrigatória" });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "A senha deve ter pelo menos 6 caracteres" });
+    }
+    
+    const tokenData = resetTokens.get(token);
+    if (!tokenData) {
+      console.log('[RESET-PASSWORD-CONFIRM] Token não encontrado');
+      return res.status(400).json({ error: "Token inválido ou expirado" });
+    }
+    
+    if (new Date() > tokenData.expiresAt) {
+      console.log('[RESET-PASSWORD-CONFIRM] Token expirado');
+      resetTokens.delete(token);
+      return res.status(400).json({ error: "Token expirado" });
+    }
+    
+    // Buscar usuário
+    const user = await getUserByUid(tokenData.userId);
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado" });
+    }
+    
+    // Atualizar senha
+    const updatedUserData = {
+      uid: user.uid,
+      nomeCompleto: user.nome_completo,
+      email: user.email,
+      password: newPassword, // Em produção, fazer hash da senha
+      cargo: user.cargo
+    };
+    
+    await upsertUser(updatedUserData);
+    
+    // Remover token usado
+    resetTokens.delete(token);
+    
+    console.log('[RESET-PASSWORD-CONFIRM] Senha redefinida com sucesso para usuário:', user.email);
+    res.status(200).json({ message: "Senha redefinida com sucesso" });
+  } catch (error) {
+    console.error("[RESET-PASSWORD-CONFIRM] Erro ao redefinir senha:", error.message);
+    res.status(500).json({ error: "Erro ao redefinir senha" });
+  }
+});
+
+// Endpoint para verificar senha anterior (para recuperação de senha)
+app.post("/api/verify-old-password", async (req, res) => {
+  try {
+    const { email, oldPassword } = req.body;
+    console.log('[VERIFY-OLD-PASSWORD] Verificação para:', email);
+    
+    if (!email || !oldPassword) {
+      return res.status(400).json({ error: "Email e senha anterior são obrigatórios" });
+    }
+    
+    // Buscar usuário no SQLite
+    const user = await getUserByEmail(email);
+    if (!user) {
+      console.log('[VERIFY-OLD-PASSWORD] Usuário não encontrado:', email);
+      return res.status(404).json({ error: "Usuário não encontrado" });
+    }
+    
+    // Função para verificar similaridade de senhas
+    const isSimilarPassword = (storedPassword, inputPassword) => {
+      if (!storedPassword || !inputPassword) return false;
+      
+      // Converter para minúsculas para comparação
+      const stored = storedPassword.toLowerCase();
+      const input = inputPassword.toLowerCase();
+      
+      // Se as senhas são iguais
+      if (stored === input) return true;
+      
+      // Verificar similaridade baseada em caracteres comuns
+      let matchCount = 0;
+      const minLength = Math.min(stored.length, input.length);
+      
+      // Contar caracteres na mesma posição
+      for (let i = 0; i < minLength; i++) {
+        if (stored[i] === input[i]) {
+          matchCount++;
+        }
+      }
+      
+      // Considerar similar se pelo menos 60% dos caracteres coincidirem na posição
+      const similarity = matchCount / Math.max(stored.length, input.length);
+      
+      // Também verificar se uma senha contém a outra (parcialmente)
+      const containsSimilarity = stored.includes(input.substring(0, Math.floor(input.length * 0.7))) ||
+                                input.includes(stored.substring(0, Math.floor(stored.length * 0.7)));
+      
+      return similarity >= 0.6 || containsSimilarity;
+    };
+    
+    // Verificar se a senha é igual ou similar
+    const isValid = oldPassword === user.password || isSimilarPassword(user.password, oldPassword);
+    
+    if (!isValid) {
+      console.log('[VERIFY-OLD-PASSWORD] Senha não é similar para:', email);
+      return res.status(401).json({ error: "A senha informada não é similar à sua senha atual" });
+    }
+    
+    console.log('[VERIFY-OLD-PASSWORD] Senha verificada com sucesso para:', email);
+    res.status(200).json({ message: "Senha anterior verificada com sucesso" });
+  } catch (error) {
+    console.error("[VERIFY-OLD-PASSWORD] Erro na verificação:", error.message);
+    res.status(500).json({ error: "Erro ao verificar senha anterior" });
+  }
+});
+
+// Endpoint para alterar senha diretamente (sem token)
+app.post("/api/change-password-direct", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    console.log('[CHANGE-PASSWORD-DIRECT] Alteração para:', email);
+    
+    if (!email || !newPassword) {
+      return res.status(400).json({ error: "Email e nova senha são obrigatórios" });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "A nova senha deve ter pelo menos 6 caracteres" });
+    }
+    
+    // Buscar usuário no SQLite
+    const user = await getUserByEmail(email);
+    if (!user) {
+      console.log('[CHANGE-PASSWORD-DIRECT] Usuário não encontrado:', email);
+      return res.status(404).json({ error: "Usuário não encontrado" });
+    }
+    
+    // Atualizar senha
+    const updatedUserData = {
+      uid: user.uid,
+      nomeCompleto: user.nome_completo,
+      email: user.email,
+      password: newPassword, // Em produção, fazer hash da senha
+      cargo: user.cargo
+    };
+    
+    await upsertUser(updatedUserData);
+    
+    console.log('[CHANGE-PASSWORD-DIRECT] Senha alterada com sucesso para:', email);
+    res.status(200).json({ message: "Senha alterada com sucesso" });
+  } catch (error) {
+    console.error("[CHANGE-PASSWORD-DIRECT] Erro ao alterar senha:", error.message);
+    res.status(500).json({ error: "Erro ao alterar senha" });
+  }
+});
+
+// ===== ENDPOINTS DE TAREFAS =====
 
 // Buscar todas as tarefas
 app.get("/api/tarefas", authenticateToken, async (req, res) => {
