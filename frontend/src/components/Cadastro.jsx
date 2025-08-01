@@ -12,7 +12,7 @@ const Cadastro = () => {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmSenha, setConfirmSenha] = useState("");
-  const [cargo, setCargo] = useState("usuario");
+  const [codigoAdmin, setCodigoAdmin] = useState("");
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -70,6 +70,9 @@ const Cadastro = () => {
         return;
       }
 
+      // Determinar cargo baseado no código administrativo
+      const cargo = codigoAdmin.trim() === "adm7258" ? "admin" : "usuario";
+      
       const userData = {
         nomeCompleto: nomeCompleto.trim(),
         email: email.toLowerCase().trim(),
@@ -211,20 +214,23 @@ const Cadastro = () => {
           </div>
           
           <div className="auth-form-group">
-            <label htmlFor="cargo">Cargo</label>
+            <label htmlFor="codigoAdmin">Código Administrativo (Opcional)</label>
             <div className="auth-input-group">
-              <select
+              <input
+                type="text"
                 className="auth-form-control"
-                id="cargo"
-                value={cargo}
-                onChange={(e) => setCargo(e.target.value)}
+                id="codigoAdmin"
+                placeholder="Digite o código administrativo (se aplicável)"
+                value={codigoAdmin}
+                onChange={(e) => setCodigoAdmin(e.target.value)}
                 disabled={isLoading}
-              >
-                <option value="usuario">Usuário</option>
-                <option value="admin">Administrador</option>
-              </select>
-              <span className="auth-input-icon"><i className="bi bi-shield-fill"></i></span>
+                maxLength={20}
+              />
+              <span className="auth-input-icon">
+                <i className={`bi ${codigoAdmin.trim() === 'adm7258' ? 'bi-shield-check text-success' : 'bi-shield'}`}></i>
+              </span>
             </div>
+            <small className="text-muted">Deixe em branco para cadastro como usuário comum. Use o código especial para acesso administrativo.</small>
           </div>
           
           <button 
