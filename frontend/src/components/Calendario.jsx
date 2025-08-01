@@ -378,6 +378,15 @@ const Calendario = () => {
       return;
     }
 
+    // Validar se há comprovante anexado para marcar como finalizado
+    if (status === "finalizado") {
+      const hasComprovantes = task?.comprovantes && task.comprovantes.length > 0;
+      if (!hasComprovantes) {
+        alert("Para marcar como finalizado, é obrigatório anexar pelo menos um comprovante/arquivo à tarefa.");
+        return;
+      }
+    }
+
     try {
       await taskService.updateStatus(id, status);
       await logActivity("update_task_status", id, task?.titulo || "Tarefa");
