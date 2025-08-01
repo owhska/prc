@@ -3,7 +3,6 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, AuthContext } from './AuthContext';
 import Login from './components/Login';
 import Cadastro from './components/Cadastro';
-import ResetPassword from './components/ResetPassword';
 import ForgotPassword from './components/ForgotPassword';
 import Home from './components/Home';
 import Calendario from './components/Calendario'; // Importa o novo Calendario.jsx
@@ -26,7 +25,6 @@ const App = () => {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/cadastro" element={<Cadastro />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
         <Route path="/calendario" element={<ProtectedRoute><Calendario /></ProtectedRoute>} />
