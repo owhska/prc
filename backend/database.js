@@ -389,6 +389,21 @@ function getAllUsers() {
     });
 }
 
+// Deletar usuário
+function deleteUser(uid) {
+    return new Promise((resolve, reject) => {
+        const sql = `DELETE FROM usuarios WHERE uid = ?`;
+        
+        db.run(sql, [uid], function(err) {
+            if (err) {
+                reject(err);
+            } else {
+                resolve({ deletedRows: this.changes });
+            }
+        });
+    });
+}
+
 // ===== FUNÇÕES PARA TAREFAS =====
 
 // Criar nova tarefa
@@ -595,6 +610,7 @@ module.exports = {
     getUserByUid,
     getUserByEmail,
     getAllUsers,
+    deleteUser,
     // Tarefas
     createTask,
     getTaskById,

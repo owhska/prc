@@ -10,7 +10,7 @@ const {
     // Arquivos
     insertFile, getFilesByTaskId, getFileById, deleteFile, incrementDownloadCount, logFileActivity, uploadsDir,
     // Usuários
-    upsertUser, getUserByUid, getUserByEmail, getAllUsers,
+    upsertUser, getUserByUid, getUserByEmail, getAllUsers, deleteUser,
     // Tarefas
     createTask, getTaskById, getAllTasks, getTasksByUser, updateTaskStatus, deleteTask,
     // Horas trabalhadas
@@ -271,10 +271,14 @@ app.delete("/api/usuarios/:id", authenticateToken, async (req, res) => {
       return res.status(404).json({ error: "Usuário não encontrado" });
     }
     
-    // Remover usuário (seria necessário implementar função deleteUser no database.js)
-    // Por enquanto, vamos simular a remoção retornando sucesso
-    console.log('Simulando remoção do usuário:', id);
+    // Remover usuário do banco de dados
+    const result = await deleteUser(id);
     
+    if (result.deletedRows === 0) {
+      return res.status(404).json({ error: "Usuário não encontrado ou já foi removido" });
+    }
+    
+    console.log('Usuário removido com sucesso do banco:', id);
     res.status(200).json({ message: "Usuário removido com sucesso" });
   } catch (error) {
     console.error("Erro ao remover usuário:", error.message);
