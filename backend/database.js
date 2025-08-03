@@ -171,8 +171,6 @@ function initializeDatabase() {
     
     console.log('🎉 Inicialização do banco de dados concluída!');
     
-    // Criar usuário de teste admin se não existir
-    createTestUser();
 }
 
 // Função para inserir um novo arquivo
