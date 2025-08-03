@@ -88,7 +88,6 @@ const Calendario = () => {
     { id: "home", label: "Home", icon: Home, description: "Calendário principal" },
     { id: "tasks", label: "Gerenciador de Tarefas", icon: List, description: "Gestão de tarefas" },
     { id: "reports", label: "Relatórios", icon: BarChart3, description: "Relatórios e estatísticas" },
-    { id: "settings", label: "Configurações", icon: Settings, description: "Configurações do sistema" },
   ];
 
   useEffect(() => {
@@ -382,7 +381,7 @@ const Calendario = () => {
     if (status === "finalizado") {
       const hasComprovantes = task?.comprovantes && task.comprovantes.length > 0;
       if (!hasComprovantes) {
-        alert("Para marcar como finalizado, é obrigatório anexar pelo menos um comprovante/arquivo à tarefa.");
+        alert("Para marcar como finalizado, é obrigatório anexar pelo menos um comprovante à tarefa.");
         return;
       }
     }
@@ -1309,15 +1308,6 @@ const Calendario = () => {
         return renderTaskManagerView();
       case "reports":
         return renderReportsView();
-      case "settings":
-        return (
-          <div className="flex-1 p-6">
-            <div className="bg-white rounded-lg shadow-sm border p-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">Configurações</h2>
-              <p className="text-gray-600">Módulo de configurações em desenvolvimento.</p>
-            </div>
-          </div>
-        );
       default:
         return renderCalendarView();
     }

@@ -175,41 +175,6 @@ function initializeDatabase() {
     createTestUser();
 }
 
-// Função para criar usuário de teste
-function createTestUser() {
-    const testUser = {
-        uid: 'test-admin-123',
-        nomeCompleto: 'Admin Teste',
-        email: 'admin@test.com',
-        password: 'senha123',
-        cargo: 'admin'
-    };
-    
-    // Verificar se o usuário já existe
-    db.get('SELECT uid FROM usuarios WHERE email = ?', [testUser.email], (err, row) => {
-        if (err) {
-            console.error('❌ Erro ao verificar usuário de teste:', err.message);
-            return;
-        }
-        
-        if (!row) {
-            // Usuário não existe, criar
-            db.run(`
-                INSERT INTO usuarios (uid, nome_completo, email, password, cargo)
-                VALUES (?, ?, ?, ?, ?)
-            `, [testUser.uid, testUser.nomeCompleto, testUser.email, testUser.password, testUser.cargo], (err) => {
-                if (err) {
-                    console.error('❌ Erro ao criar usuário de teste:', err.message);
-                } else {
-                    console.log('✅ Usuário de teste criado:', testUser.email, '/ senha:', testUser.password);
-                }
-            });
-        } else {
-            console.log('👤 Usuário de teste já existe:', testUser.email);
-        }
-    });
-}
-
 // Função para inserir um novo arquivo
 function insertFile(fileData) {
     return new Promise((resolve, reject) => {

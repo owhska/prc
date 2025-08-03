@@ -50,14 +50,14 @@ const ForgotPassword = () => {
       }
     }
     
-    // Considerar similar se pelo menos 60% dos caracteres coincidirem na posição
+    // Considerar similar se pelo menos 90% dos caracteres coincidirem na posição
     const similarity = matchCount / Math.max(old.length, input.length);
     
     // Também verificar se uma senha contém a outra (parcialmente)
     const containsSimilarity = old.includes(input.substring(0, Math.floor(input.length * 0.7))) ||
                               input.includes(old.substring(0, Math.floor(old.length * 0.7)));
     
-    return similarity >= 0.6 || containsSimilarity;
+    return similarity >= 0.9 || containsSimilarity;
   };
 
   const handleEmailSubmit = async () => {
