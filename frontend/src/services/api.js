@@ -94,48 +94,6 @@ export const taskService = {
   }
 };
 
-// Pontos
-export const pontoService = {
-  // Buscar pontos do usuário
-  getByUser: async () => {
-    const response = await axiosInstance.get('/api/ponto');
-    return response.data;
-  },
-
-  // Buscar todos os pontos (admin)
-  getAll: async () => {
-    const response = await axiosInstance.get('/api/ponto/todos');
-    return response.data;
-  },
-
-  // Registrar ponto
-  register: async (pontoData) => {
-    const response = await axiosInstance.post('/api/ponto', pontoData);
-    return response.data;
-  },
-
-  // Deletar ponto
-  delete: async (pontoId) => {
-    const response = await axiosInstance.delete(`/api/ponto/${pontoId}`);
-    return response.data;
-  }
-};
-
-// Horas trabalhadas
-export const horasService = {
-  // Buscar horas de um mês específico
-  getByMonth: async (userId, year, month) => {
-    const response = await axiosInstance.get(`/api/horas-trabalhadas/${userId}/${year}/${month}`);
-    return response.data;
-  },
-
-  // Salvar horas trabalhadas
-  save: async (horasData) => {
-    const response = await axiosInstance.post('/api/horas-trabalhadas', horasData);
-    return response.data;
-  }
-};
-
 // Logs
 export const logService = {
   // Buscar logs
