@@ -61,6 +61,12 @@ export const taskService = {
     return response.data;
   },
 
+  // Atualizar tarefa completa
+  update: async (taskId, taskData) => {
+    const response = await axiosInstance.put(`/api/tarefas/${taskId}`, taskData);
+    return response.data;
+  },
+
   // Deletar tarefa
   delete: async (taskId) => {
     const response = await axiosInstance.delete(`/api/tarefas/${taskId}`);
@@ -112,7 +118,5 @@ export const logService = {
 export default {
   userService,
   taskService,
-  pontoService,
-  horasService,
   logService
 };

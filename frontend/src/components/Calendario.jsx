@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { Calendar, Plus, Filter, Bell, User, Clock, CheckCircle, AlertCircle, XCircle,
   Eye, Trash2, FileText, Home, Settings, List, BarChart3, Maximize2, X, LogOut,
-  Upload, Download, Image, File, AlertTriangle
+  Upload, Download, Image, File, AlertTriangle, Edit
 } from "lucide-react";
 import { AuthContext } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -23,7 +23,9 @@ const Calendario = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showTaskDetails, setShowTaskDetails] = useState(false);
+  const [showEditTaskModal, setShowEditTaskModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [editingTask, setEditingTask] = useState(null);
   const [activeView, setActiveView] = useState("home");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [filters, setFilters] = useState({
@@ -52,6 +54,17 @@ const Calendario = () => {
   const tasksPerPage = 5;
 
   const [newTask, setNewTask] = useState({
+    titulo: "",
+    responsavel: "",
+    responsavelId: "",
+    dataVencimento: "",
+    observacoes: "",
+    recorrente: false,
+    frequencia: "mensal",
+  });
+
+  const [editTask, setEditTask] = useState({
+    id: "",
     titulo: "",
     responsavel: "",
     responsavelId: "",
@@ -399,6 +412,104 @@ const Calendario = () => {
     }
   };
 
+  const handleEditTask = (task) => {
+    // Verificar se o usuário é admin para poder editar tarefas
+    if (!isAdmin) {
+      alert("Apenas administradores podem editar tarefas.");
+      return;
+    }
+    
+    // Definir dados da tarefa para edição
+    setEditTask({
+      id: task.id,
+      titulo: task.titulo,
+      responsavel: task.responsavel,
+      responsavelId: task.responsavelId,
+      dataVencimento: task.dataVencimento ? 
+        new Date(task.dataVencimento).toISOString().split('T')[0] : "",
+      observacoes: task.observacoes || "",
+      recorrente: task.recorrente || false,
+      frequencia: task.frequencia || "mensal",
+    });
+    
+    setEditingTask(task);
+    setShowEditTaskModal(true);
+    setShowTaskDetails(false);
+  };
+
+  const handleUpdateTask = async () => {
+    if (!user) {
+      alert("Você precisa estar autenticado para editar uma tarefa!");
+      return;
+    }
+    
+    // Verificar se o usuário é admin para poder editar tarefas
+    if (!isAdmin) {
+      alert("Apenas administradores podem editar tarefas.");
+      return;
+    }
+    
+    if (!editTask.titulo.trim() || !editTask.responsavelId || !editTask.dataVencimento) {
+      alert("Preencha todos os campos obrigatórios!");
+      return;
+    }
+    
+    const responsavel = usuarios.find((u) => u.id === editTask.responsavelId);
+    if (!responsavel) {
+      alert("O responsável selecionado não está cadastrado no sistema!");
+      return;
+    }
+
+    const taskData = {
+      titulo: editTask.titulo.trim(),
+      responsavel: responsavel.nome,
+      responsavelId: responsavel.id,
+      dataVencimento: new Date(editTask.dataVencimento).toISOString(),
+      observacoes: editTask.observacoes || "",
+      recorrente: editTask.recorrente,
+      frequencia: editTask.frequencia,
+    };
+
+    try {
+      const updatedTask = await taskService.update(editTask.id, taskData);
+      await logActivity("edit_task", editTask.id, taskData.titulo);
+      
+      // Atualizar lista local de tarefas
+      const formattedTask = {
+        ...updatedTask,
+        dataVencimento: new Date(updatedTask.dataVencimento),
+        dataCriacao: new Date(updatedTask.dataCriacao),
+        comprovantes: updatedTask.comprovantes || [],
+      };
+      
+      setTasks(prev => prev.map(t => 
+        t.id === editTask.id ? formattedTask : t
+      ));
+      
+      // Atualizar tarefa selecionada se for a mesma
+      if (selectedTask && selectedTask.id === editTask.id) {
+        setSelectedTask(formattedTask);
+      }
+      
+      setShowEditTaskModal(false);
+      setEditingTask(null);
+      setEditTask({
+        id: "",
+        titulo: "",
+        responsavel: "",
+        responsavelId: "",
+        dataVencimento: "",
+        observacoes: "",
+        recorrente: false,
+        frequencia: "mensal",
+      });
+      alert("Tarefa atualizada com sucesso!");
+    } catch (error) {
+      console.error("Erro ao atualizar tarefa:", error.message);
+      alert("Erro ao atualizar tarefa. Tente novamente.");
+    }
+  };
+
   const handleDeleteTask = async (id) => {
     // Verificar se o usuário é admin para poder excluir tarefas
     if (!isAdmin) {
@@ -717,6 +828,19 @@ const Calendario = () => {
         titulo: "",
         responsavel: "",
         responsavelId: user?.uid || "",
+        dataVencimento: "",
+        observacoes: "",
+        recorrente: false,
+        frequencia: "mensal",
+      });
+    } else if (modalType === "edit") {
+      setShowEditTaskModal(false);
+      setEditingTask(null);
+      setEditTask({
+        id: "",
+        titulo: "",
+        responsavel: "",
+        responsavelId: "",
         dataVencimento: "",
         observacoes: "",
         recorrente: false,
@@ -1861,15 +1985,128 @@ const Calendario = () => {
                     Fechar
                   </button>
                   {isAdmin && (
-                    <button
-                      onClick={() => handleDeleteTask(selectedTask.id)}
-                      className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors flex items-center gap-2"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      Excluir
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleEditTask(selectedTask)}
+                        className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors flex items-center gap-2"
+                      >
+                        <Edit className="w-3 h-3" />
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTask(selectedTask.id)}
+                        className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors flex items-center gap-2"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Excluir
+                      </button>
+                    </>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showEditTaskModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4" ref={modalRef}>
+              <div className="flex items-center justify-between p-6 border-b">
+                <h3 className="text-lg font-semibold text-gray-800">Editar Tarefa</h3>
+                <button onClick={() => handleCloseModal("edit")} className="text-gray-400 hover:text-gray-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Título da tarefa"
+                    value={editTask.titulo}
+                    onChange={(e) => setEditTask({ ...editTask, titulo: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Responsável</label>
+                  <select
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={editTask.responsavelId}
+                    onChange={(e) => {
+                      const usuario = usuarios.find((u) => u.id === e.target.value);
+                      setEditTask({
+                        ...editTask,
+                        responsavelId: e.target.value,
+                        responsavel: usuario ? usuario.nome : "",
+                      });
+                    }}
+                  >
+                    <option value="">Selecione um responsável</option>
+                    {usuarios.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.nome} {u.id === user?.uid ? "(Eu)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Data de Vencimento</label>
+                  <input
+                    type="date"
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={editTask.dataVencimento}
+                    onChange={(e) => setEditTask({ ...editTask, dataVencimento: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+                  <textarea
+                    className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    rows="3"
+                    placeholder="Observações da tarefa"
+                    value={editTask.observacoes}
+                    onChange={(e) => setEditTask({ ...editTask, observacoes: e.target.value })}
+                  ></textarea>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Recorrente</label>
+                  <input
+                    type="checkbox"
+                    className="mr-2 leading-tight"
+                    checked={editTask.recorrente}
+                    onChange={(e) => setEditTask({ ...editTask, recorrente: e.target.checked })}
+                  />
+                  <span>Recorrente</span>
+                </div>
+                {editTask.recorrente && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Frequência</label>
+                    <select
+                      className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={editTask.frequencia}
+                      onChange={(e) => setEditTask({ ...editTask, frequencia: e.target.value })}
+                    >
+                      <option value="mensal">Mensal</option>
+                      <option value="semanal">Semanal</option>
+                      <option value="diario">Diário</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-end gap-3 p-6 border-t">
+                <button
+                  onClick={() => handleCloseModal("edit")}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleUpdateTask}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                >
+                  Atualizar Tarefa
+                </button>
               </div>
             </div>
           </div>

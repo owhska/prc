@@ -12,7 +12,7 @@ const {
     // Usuários
     upsertUser, getUserByUid, getUserByEmail, getAllUsers, deleteUser,
     // Tarefas
-    createTask, getTaskById, getAllTasks, getTasksByUser, updateTaskStatus, deleteTask,
+    createTask, getTaskById, getAllTasks, getTasksByUser, updateTaskStatus, updateTask, deleteTask,
     // Horas trabalhadas
     upsertHorasTrabalhadas, getHorasTrabalhadasByUserAndPeriod,
     // Logs
@@ -799,6 +799,96 @@ app.patch("/api/tarefas/:id/status", authenticateToken, async (req, res) => {
   } catch (error) {
     console.error("Erro ao atualizar status da tarefa:", error.message);
     res.status(500).json({ error: "Erro ao atualizar status da tarefa: " + error.message });
+  }
+});
+
+// Atualizar tarefa completa
+app.put("/api/tarefas/:id", authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { titulo, responsavelId, dataVencimento, observacoes, recorrente, frequencia } = req.body;
+    
+    console.log('Dados para atualizar tarefa:', { id, titulo, responsavelId, dataVencimento, observacoes, recorrente, frequencia });
+    
+    if (!titulo || !responsavelId || !dataVencimento) {
+      return res.status(400).json({ error: "Título, responsável e data de vencimento são obrigatórios" });
+    }
+    
+    // Verificar se é admin
+    const user = await getUserByUid(req.user.uid);
+    if (!user || user.cargo !== 'admin') {
+      return res.status(403).json({ error: "Apenas administradores podem editar tarefas" });
+    }
+    
+    // Buscar a tarefa existente
+    const existingTask = await getTaskById(id);
+    if (!existingTask) {
+      return res.status(404).json({ error: "Tarefa não encontrada" });
+    }
+    
+    // Buscar dados do novo responsável
+    const responsavel = await getUserByUid(responsavelId);
+    if (!responsavel) {
+      return res.status(400).json({ error: "Responsável não encontrado" });
+    }
+    
+    const updatedTaskData = {
+      id,
+      titulo: titulo.trim(),
+      responsavel: responsavel.nome_completo || responsavel.email.split('@')[0],
+      responsavelId,
+      dataVencimento,
+      observacoes: observacoes || '',
+      recorrente: Boolean(recorrente),
+      frequencia: frequencia || 'mensal'
+    };
+    
+    await updateTask(id, updatedTaskData);
+    
+    // Log da atividade
+    await insertActivityLog({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      action: 'edit_task',
+      taskId: id,
+      taskTitle: titulo.trim()
+    });
+    
+    // Buscar tarefa atualizada para retornar
+    const updatedTask = await getTaskById(id);
+    
+    // Buscar arquivos da tarefa
+    const files = await getFilesByTaskId(id);
+    const comprovantes = files.map(file => ({
+      id: file.id,
+      url: `/api/files/${file.id}/download`,
+      name: file.original_name,
+      size: file.size,
+      type: file.mime_type,
+      uploadDate: file.upload_date,
+      uploadedBy: file.uploaded_by,
+      downloadCount: file.download_count
+    }));
+    
+    const response = {
+      id: updatedTask.id,
+      titulo: updatedTask.titulo,
+      responsavel: updatedTask.responsavel,
+      responsavelId: updatedTask.responsavel_id,
+      dataVencimento: updatedTask.data_vencimento,
+      observacoes: updatedTask.observacoes,
+      status: updatedTask.status,
+      recorrente: Boolean(updatedTask.recorrente),
+      frequencia: updatedTask.frequencia,
+      dataCriacao: updatedTask.data_criacao,
+      comprovantes: comprovantes
+    };
+    
+    console.log('Tarefa atualizada com sucesso:', id);
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Erro ao atualizar tarefa:", error.message);
+    res.status(500).json({ error: "Erro ao atualizar tarefa: " + error.message });
   }
 });
 

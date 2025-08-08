@@ -449,6 +449,34 @@ function updateTaskStatus(taskId, status) {
     });
 }
 
+// Atualizar tarefa completa
+function updateTask(taskId, taskData) {
+    return new Promise((resolve, reject) => {
+        const { titulo, responsavel, responsavelId, dataVencimento, observacoes, recorrente, frequencia } = taskData;
+        
+        const sql = `
+            UPDATE tarefas SET 
+                titulo = ?,
+                responsavel = ?,
+                responsavel_id = ?,
+                data_vencimento = ?,
+                observacoes = ?,
+                recorrente = ?,
+                frequencia = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `;
+        
+        db.run(sql, [titulo, responsavel, responsavelId, dataVencimento, observacoes, recorrente, frequencia, taskId], function(err) {
+            if (err) {
+                reject(err);
+            } else {
+                resolve({ taskId, updatedRows: this.changes });
+            }
+        });
+    });
+}
+
 // Deletar tarefa
 function deleteTask(taskId) {
     return new Promise((resolve, reject) => {
@@ -580,6 +608,7 @@ module.exports = {
     getAllTasks,
     getTasksByUser,
     updateTaskStatus,
+    updateTask,
     deleteTask,
     // Horas trabalhadas
     upsertHorasTrabalhadas,
