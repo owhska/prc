@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { Calendar, Plus, Filter, Bell, User, Clock, CheckCircle, AlertCircle, XCircle,
   Eye, Trash2, FileText, Home, Settings, List, BarChart3, Maximize2, X, LogOut,
-  Upload, Download, Image, File, AlertTriangle, Edit
+  Upload, Download, Image, File, AlertTriangle, Edit, RefreshCw, ChevronDown, ChevronUp, Loader2
 } from "lucide-react";
 import { AuthContext } from "../AuthContext";
 import { useNavigate } from "react-router-dom";
-import { taskService, userService, logService } from '../services/api';
+import { taskService, userService, logService, agendaTributariaService } from '../services/api';
 import axiosInstance from '../utils/axiosConfig';
 import "../styles/styles.css";
 
@@ -52,6 +52,24 @@ const Calendario = () => {
   const [currentReportPage, setCurrentReportPage] = useState(1);
   const [currentHomePage, setCurrentHomePage] = useState(1);
   const tasksPerPage = 5;
+
+  // Estados para Agenda Tributária
+  const [agendaLoading, setAgendaLoading] = useState(false);
+  const [obrigacoes, setObrigacoes] = useState([]);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [responsavelEmail, setResponsavelEmail] = useState('');
+  const [agendaResultado, setAgendaResultado] = useState(null);
+  const [agendaError, setAgendaError] = useState(null);
+  const [showObrigacoes, setShowObrigacoes] = useState(false);
+  const [expandedMonths, setExpandedMonths] = useState({});
+
+  // Estados para Sistema Automatizado de Agenda Tributária
+  const [modoAvancado, setModoAvancado] = useState(false);
+  const [sistemaAtualizado, setSistemaAtualizado] = useState(false);
+  const [obrigacoesCompletas, setObrigacoesCompletas] = useState([]);
+  const [loadingObrigacoesAtualizadas, setLoadingObrigacoesAtualizadas] = useState(false);
+  const [criacoesAutomatizadas, setCriacoesAutomatizadas] = useState({});
 
   const [newTask, setNewTask] = useState({
     titulo: "",
@@ -101,6 +119,7 @@ const Calendario = () => {
     { id: "home", label: "Home", icon: Home, description: "Calendário principal" },
     { id: "tasks", label: "Gerenciador de Tarefas", icon: List, description: "Gestão de tarefas" },
     { id: "reports", label: "Relatórios", icon: BarChart3, description: "Relatórios e estatísticas" },
+    ...(isAdmin ? [{ id: "agenda-tributaria", label: "Agenda Tributária", icon: FileText, description: "Obrigações fiscais mensais" }] : []),
   ];
 
   useEffect(() => {
@@ -1424,6 +1443,634 @@ const Calendario = () => {
     );
   };
 
+  // Funções da Agenda Tributária
+  const carregarObrigacoes = async () => {
+    try {
+      setAgendaLoading(true);
+      const response = await axiosInstance.get('/api/agenda-tributaria/obrigacoes');
+      setObrigacoes(response.data.obrigacoesPorMes);
+    } catch (error) {
+      console.error('Erro ao carregar obrigações:', error);
+      setAgendaError('Erro ao carregar obrigações tributárias');
+    } finally {
+      setAgendaLoading(false);
+    }
+  };
+
+  const criarTarefasMes = async () => {
+    if (!selectedYear || !selectedMonth) {
+      setAgendaError('Selecione ano e mês');
+      return;
+    }
+
+    try {
+      setAgendaLoading(true);
+      setAgendaError(null);
+      setAgendaResultado(null);
+
+      const response = await axiosInstance.post('/api/agenda-tributaria/criar-mes', {
+        ano: selectedYear,
+        mes: selectedMonth,
+        responsavelEmail: responsavelEmail || undefined
+      });
+
+      setAgendaResultado({
+        tipo: 'mes',
+        dados: response.data
+      });
+    } catch (error) {
+      console.error('Erro ao criar tarefas do mês:', error);
+      setAgendaError(error.response?.data?.error || 'Erro ao criar tarefas do mês');
+    } finally {
+      setAgendaLoading(false);
+    }
+  };
+
+  const criarTarefasAno = async () => {
+    if (!selectedYear) {
+      setAgendaError('Selecione um ano');
+      return;
+    }
+
+    if (!window.confirm(`Tem certeza que deseja criar TODAS as tarefas de ${selectedYear}? Isso criará mais de 50 tarefas!`)) {
+      return;
+    }
+
+    try {
+      setAgendaLoading(true);
+      setAgendaError(null);
+      setAgendaResultado(null);
+
+      const response = await axiosInstance.post('/api/agenda-tributaria/criar-ano', {
+        ano: selectedYear,
+        responsavelEmail: responsavelEmail || undefined
+      });
+
+      setAgendaResultado({
+        tipo: 'ano',
+        dados: response.data
+      });
+    } catch (error) {
+      console.error('Erro ao criar tarefas do ano:', error);
+      setAgendaError(error.response?.data?.error || 'Erro ao criar tarefas do ano');
+    } finally {
+      setAgendaLoading(false);
+    }
+  };
+
+  const criarTarefasProximoMes = async () => {
+    try {
+      setAgendaLoading(true);
+      setAgendaError(null);
+      setAgendaResultado(null);
+
+      const response = await axiosInstance.post('/api/agenda-tributaria/proximo-mes', {
+        responsavelEmail: responsavelEmail || undefined
+      });
+
+      setAgendaResultado({
+        tipo: 'proximo-mes',
+        dados: response.data
+      });
+    } catch (error) {
+      console.error('Erro ao criar tarefas do próximo mês:', error);
+      setAgendaError(error.response?.data?.error || 'Erro ao criar tarefas do próximo mês');
+    } finally {
+      setAgendaLoading(false);
+    }
+  };
+
+  const toggleMonth = (mes) => {
+    setExpandedMonths(prev => ({
+      ...prev,
+      [mes]: !prev[mes]
+    }));
+  };
+
+  const getYearOptions = () => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let i = currentYear - 1; i <= 2030; i++) {
+      years.push(i);
+    }
+    return years;
+  };
+
+
+  const getMonthName = (monthNum) => {
+    const months = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    return months[monthNum - 1];
+  };
+
+  // Carregar obrigações quando a aba agenda-tributaria for ativa
+  useEffect(() => {
+    if (activeView === 'agenda-tributaria' && isAdmin) {
+      carregarObrigacoes();
+    }
+  }, [activeView, isAdmin]);
+
+  // Funções do Sistema Automatizado de Agenda Tributária
+  const buscarObrigacoesAtualizadas = async () => {
+    try {
+      setLoadingObrigacoesAtualizadas(true);
+      setAgendaError(null);
+      
+      const response = await agendaTributariaService.getObrigacoesCompletas();
+      setObrigacoesCompletas(response.obrigacoesPorMes || response.data || []);
+      setSistemaAtualizado(true);
+    } catch (error) {
+      console.error('Erro ao buscar obrigações atualizadas:', error);
+      setAgendaError(error.response?.data?.error || 'Erro ao buscar obrigações atualizadas');
+    } finally {
+      setLoadingObrigacoesAtualizadas(false);
+    }
+  };
+
+  const criarTarefasComDadosAtualizados = async (periodo) => {
+    if (!sistemaAtualizado) {
+      setAgendaError('Primeiro busque as obrigações atualizadas');
+      return;
+    }
+
+    try {
+      setAgendaLoading(true);
+      setAgendaError(null);
+      setAgendaResultado(null);
+
+      let response;
+      
+      if (periodo.mes) {
+        // Criar tarefas do mês usando API
+        response = await agendaTributariaService.criarTarefasMesAPI(
+          periodo.ano, 
+          periodo.mes, 
+          responsavelEmail || undefined
+        );
+      } else {
+        // Criar tarefas do ano usando API
+        response = await agendaTributariaService.criarTarefasAnoAPI(
+          periodo.ano, 
+          responsavelEmail || undefined
+        );
+      }
+
+      setCriacoesAutomatizadas(prev => ({
+        ...prev,
+        [JSON.stringify(periodo)]: {
+          timestamp: new Date().toISOString(),
+          resultado: response
+        }
+      }));
+
+      setAgendaResultado({
+        tipo: periodo.mes ? 'mes-automatizado' : 'ano-automatizado',
+        dados: response,
+        periodo
+      });
+      
+      // Recarregar tarefas após criação bem-sucedida
+      console.log('[AGENDA-AUTOMATIZADA] Recarregando lista de tarefas...');
+      await fetchTasks();
+      console.log('[AGENDA-AUTOMATIZADA] Lista de tarefas recarregada!');
+      
+    } catch (error) {
+      console.error('Erro ao criar tarefas com dados atualizados:', error);
+      setAgendaError(error.response?.data?.error || 'Erro ao criar tarefas com dados atualizados');
+    } finally {
+      setAgendaLoading(false);
+    }
+  };
+
+  const criarTarefasMesAutomatizado = async () => {
+    await criarTarefasComDadosAtualizados({
+      ano: selectedYear,
+      mes: selectedMonth
+    });
+  };
+
+  const criarTarefasAnoAutomatizado = async () => {
+    if (!window.confirm(`Tem certeza que deseja criar TODAS as tarefas automatizadas de ${selectedYear}? Isso criará tarefas com dados atualizados da API!`)) {
+      return;
+    }
+
+    await criarTarefasComDadosAtualizados({
+      ano: selectedYear
+    });
+  };
+
+  const renderAgendaTributariaView = () => {
+    if (!isAdmin) {
+      return (
+        <div className="flex-1 p-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-800">Acesso Restrito</h3>
+              <p className="text-gray-600">Apenas administradores podem acessar a Agenda Tributária</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-1 p-6">
+        <div className="max-w-6xl mx-auto">
+          {/* Seleção do Modo */}
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">Modo de Operação</h2>
+            
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-8 space-y-4 sm:space-y-0 bg-gray-50 p-4 rounded-lg shadow-sm">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="modoAgenda"
+                    checked={!modoAvancado}
+                    onChange={() => {
+                      setModoAvancado(false);
+                      setSistemaAtualizado(false);
+                      setAgendaError(null);
+                      setAgendaResultado(null);
+                    }}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span className="ml-3 text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors duration-200">
+                    Sistema Básico (Dados Estáticos)
+                  </span>
+                </label>
+                
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="radio"
+                    name="modoAgenda"
+                    checked={modoAvancado}
+                    onChange={() => {
+                      setModoAvancado(true);
+                      setAgendaError(null);
+                      setAgendaResultado(null);
+                    }}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span className="ml-3 text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors duration-200">
+                    Sistema Automatizado (Dados da API)
+                  </span>
+                </label>
+              </div>
+              
+              <div className="text-sm text-gray-600">
+                {!modoAvancado ? (
+                  <p>📋 Utiliza dados estáticos predefinidos para as obrigações tributárias.</p>
+                ) : (
+                  <p>🚀 Utiliza dados atualizados da API para criar tarefas mais precisas e detalhadas.</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Configurações */}
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">Configurações</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Ano</label>
+                <select
+                  value={selectedYear}
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  style={{ maxHeight: '200px', overflowY: 'auto' }}
+                >
+                  {getYearOptions().map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Mês</label>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      {getMonthName(i + 1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Responsável (opcional)
+                </label>
+                <input
+                  type="email"
+                  value={responsavelEmail}
+                  onChange={(e) => setResponsavelEmail(e.target.value)}
+                  placeholder="admin@empresa.com"
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Se vazio, será usado o primeiro administrador
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Sistema Automatizado - Buscar Obrigações Atualizadas */}
+          {modoAvancado && (
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border border-blue-200 p-6 mb-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <RefreshCw className="w-5 h-5 text-blue-600" />
+                Sistema Automatizado
+              </h2>
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
+                  <div>
+                    <h3 className="font-medium text-gray-900">Status do Sistema</h3>
+                    <p className="text-sm text-gray-600">
+                      {sistemaAtualizado ? "✅ Dados atualizados carregados" : "⏳ Dados não atualizados"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={buscarObrigacoesAtualizadas}
+                    disabled={loadingObrigacoesAtualizadas}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                  >
+                    {loadingObrigacoesAtualizadas ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    {loadingObrigacoesAtualizadas ? "Atualizando..." : "Buscar Obrigações Atualizadas"}
+                  </button>
+                </div>
+                
+                {sistemaAtualizado && obrigacoesCompletas.length > 0 && (
+                  <div className="bg-white rounded-lg border p-4">
+                    <h4 className="font-medium text-gray-900 mb-2">Dados Carregados</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">Total de Obrigações:</span>
+                        <span className="ml-2 text-blue-600 font-bold">{obrigacoesCompletas.length}</span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-700">Última Atualização:</span>
+                        <span className="ml-2 text-gray-600">{new Date().toLocaleString('pt-BR')}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Ações */}
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <h2 className="text-xl font-semibold text-gray-800 mb-4">
+              {modoAvancado ? "Ações Automatizadas" : "Ações Básicas"}
+            </h2>
+            
+            {!modoAvancado ? (
+              // Botões do sistema básico
+              <div className="flex flex-wrap gap-4">
+                <button
+                  onClick={criarTarefasMes}
+                  disabled={agendaLoading}
+                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                >
+                  {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Criar Tarefas do Mês ({getMonthName(selectedMonth)}/{selectedYear})
+                </button>
+
+                <button
+                  onClick={criarTarefasAno}
+                  disabled={agendaLoading}
+                  className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                >
+                  {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
+                  Criar Ano Completo ({selectedYear})
+                </button>
+
+                <button
+                  onClick={criarTarefasProximoMes}
+                  disabled={agendaLoading}
+                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                >
+                  {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
+                  Criar Próximo Mês
+                </button>
+
+                <button
+                  onClick={() => setShowObrigacoes(!showObrigacoes)}
+                  className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                >
+                  <Eye className="w-4 h-4" />
+                  Ver Obrigações
+                </button>
+              </div>
+            ) : (
+              // Botões do sistema automatizado
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-4">
+                  <button
+                    onClick={criarTarefasMesAutomatizado}
+                    disabled={agendaLoading || !sistemaAtualizado}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                  >
+                    {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                    Criar Tarefas Automatizadas - Mês ({getMonthName(selectedMonth)}/{selectedYear})
+                  </button>
+
+                  <button
+                    onClick={criarTarefasAnoAutomatizado}
+                    disabled={agendaLoading || !sistemaAtualizado}
+                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-black px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                  >
+                    {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : <Calendar className="w-4 h-4 text-black" />}
+                    Criar Ano Automatizado ({selectedYear})
+                  </button>
+                </div>
+                
+                {!sistemaAtualizado && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 text-yellow-600" />
+                      <span className="font-medium text-yellow-800">Atenção</span>
+                    </div>
+                    <p className="text-yellow-700 mt-1">
+                      Para usar o sistema automatizado, primeiro busque as obrigações atualizadas.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Resultado */}
+          {agendaResultado && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <h3 className="text-lg font-semibold text-green-800">Sucesso!</h3>
+              </div>
+              
+              <p className="text-green-700 mb-3">{agendaResultado.dados.message}</p>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                {agendaResultado.tipo === 'ano' ? (
+                  <>
+                    <div>
+                      <span className="font-medium">Meses processados:</span>
+                      <span className="ml-2">{agendaResultado.dados.mesesProcessados}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Sucessos:</span>
+                      <span className="ml-2 text-green-600">{agendaResultado.dados.sucessos}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Erros:</span>
+                      <span className="ml-2 text-red-600">{agendaResultado.dados.erros}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Total de tarefas:</span>
+                      <span className="ml-2 font-bold">{agendaResultado.dados.totalTarefasCriadas}</span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <span className="font-medium">Período:</span>
+                      <span className="ml-2">{agendaResultado.dados.mes}/{agendaResultado.dados.ano}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Tarefas criadas:</span>
+                      <span className="ml-2 font-bold">{agendaResultado.dados.tarefasCriadas}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Responsável:</span>
+                      <span className="ml-2">{agendaResultado.dados.responsavel}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {agendaResultado.dados.detalhes && agendaResultado.dados.detalhes.erros && agendaResultado.dados.detalhes.erros.length > 0 && (
+                <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                  <h4 className="font-medium text-red-800 mb-2">Erros encontrados:</h4>
+                  <ul className="list-disc list-inside text-red-700 text-sm">
+                    {agendaResultado.dados.detalhes.erros.map((erro, index) => (
+                      <li key={index}>Mês {erro.mes}: {erro.erro}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Erro */}
+          {agendaError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-red-600" />
+                <span className="text-red-800 font-medium">Erro</span>
+              </div>
+              <p className="text-red-700 mt-1">{agendaError}</p>
+            </div>
+          )}
+
+          {/* Obrigações */}
+          {showObrigacoes && (
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-800">Obrigações Tributárias</h2>
+                <button
+                  onClick={carregarObrigacoes}
+                  disabled={agendaLoading}
+                  className="text-blue-600 hover:text-blue-700 flex items-center gap-2"
+                >
+                  <RefreshCw className={`w-4 h-4 ${agendaLoading ? 'animate-spin' : ''}`} />
+                  Atualizar
+                </button>
+              </div>
+
+              {agendaLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  <span className="ml-2 text-gray-600">Carregando obrigações...</span>
+                </div>
+              ) : obrigacoes.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p>Nenhuma obrigação encontrada</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {obrigacoes.map((mesObj) => (
+                    <div key={mesObj.mes} className="border rounded-lg">
+                      <button
+                        onClick={() => toggleMonth(mesObj.mes)}
+                        className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Calendar className="w-5 h-5 text-blue-600" />
+                          <span className="font-semibold text-gray-800">
+                            {mesObj.mesNome}
+                          </span>
+                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs">
+                            {mesObj.totalObrigacoes} obrigações
+                          </span>
+                        </div>
+                        {expandedMonths[mesObj.mes] ? 
+                          <ChevronUp className="w-5 h-5 text-gray-500" /> : 
+                          <ChevronDown className="w-5 h-5 text-gray-500" />
+                        }
+                      </button>
+
+                      {expandedMonths[mesObj.mes] && (
+                        <div className="p-4 border-t">
+                          <div className="space-y-3">
+                            {mesObj.obrigacoes.map((obrigacao, index) => (
+                              <div key={index} className="bg-white border rounded-lg p-4">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <h4 className="font-medium text-gray-800 mb-2">
+                                      {obrigacao.titulo}
+                                    </h4>
+                                    <p className="text-sm text-gray-600 mb-2">
+                                      {obrigacao.observacoes}
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <Clock className="w-4 h-4 text-blue-600" />
+                                      <span className="text-sm font-medium text-blue-600">
+                                        Vencimento: dia {obrigacao.vencimento}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeView) {
       case "home":
@@ -1432,6 +2079,8 @@ const Calendario = () => {
         return renderTaskManagerView();
       case "reports":
         return renderReportsView();
+      case "agenda-tributaria":
+        return renderAgendaTributariaView();
       default:
         return renderCalendarView();
     }

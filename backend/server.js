@@ -19,6 +19,12 @@ const {
     insertActivityLog, getActivityLog
 } = require('./database');
 
+// Importar script da agenda tributária
+const { criarTarefasMes, criarTarefasAnoCompleto, OBRIGACOES_TRIBUTARIAS } = require('./scripts/agenda-tributaria');
+
+// Importar sistema automatizado da agenda tributária
+const { criarTarefasComDadosAPI, buscarAgendaTributariaAtualizada, AGENDA_TRIBUTARIA_COMPLETA } = require('./scripts/agenda-tributaria-api');
+
 const app = express();
 
 app.use(express.json());
@@ -1217,6 +1223,426 @@ app.delete('/api/files/:fileId', authenticateToken, async (req, res) => {
 
 // Endpoint estático para servir arquivos (alternativo ao download)
 app.use('/uploads', express.static(uploadsDir));
+
+// ===== ENDPOINTS DA AGENDA TRIBUTÁRIA =====
+
+// Endpoint para listar obrigações tributárias disponíveis
+app.get('/api/agenda-tributaria/obrigacoes', authenticateToken, async (req, res) => {
+  try {
+    console.log('[AGENDA-TRIBUTARIA] Listando obrigações disponíveis');
+    
+    // Verificar se é admin
+    const user = await getUserByUid(req.user.uid);
+    if (!user || user.cargo !== 'admin') {
+      return res.status(403).json({ error: "Apenas administradores podem acessar a agenda tributária" });
+    }
+    
+    // Mapear obrigações para formato simplificado
+    const obrigacoesPorMes = OBRIGACOES_TRIBUTARIAS.map(mesObj => ({
+      mes: mesObj.mes,
+      mesNome: new Date(0, mesObj.mes - 1).toLocaleString('pt-BR', { month: 'long' }),
+      totalObrigacoes: mesObj.obrigacoes.length,
+      obrigacoes: mesObj.obrigacoes.map(obr => ({
+        titulo: obr.titulo,
+        vencimento: obr.vencimento,
+        observacoes: obr.observacoes
+      }))
+    }));
+    
+    res.status(200).json({
+      totalMeses: obrigacoesPorMes.length,
+      obrigacoesPorMes
+    });
+    
+  } catch (error) {
+    console.error('[AGENDA-TRIBUTARIA] Erro ao listar obrigações:', error.message);
+    res.status(500).json({ error: 'Erro ao listar obrigações tributárias: ' + error.message });
+  }
+});
+
+// Endpoint para criar tarefas de um mês específico
+app.post('/api/agenda-tributaria/criar-mes', authenticateToken, async (req, res) => {
+  try {
+    const { ano, mes, responsavelEmail } = req.body;
+    
+    console.log('[AGENDA-TRIBUTARIA] Criando tarefas para mês específico:', { ano, mes, responsavelEmail });
+    
+    // Verificar se é admin
+    const user = await getUserByUid(req.user.uid);
+    if (!user || user.cargo !== 'admin') {
+      return res.status(403).json({ error: "Apenas administradores podem criar tarefas da agenda tributária" });
+    }
+    
+    // Validar parâmetros
+    if (!ano || !mes || mes < 1 || mes > 12) {
+      return res.status(400).json({ error: "Ano e mês são obrigatórios. Mês deve estar entre 1 e 12." });
+    }
+    
+    // Criar tarefas
+    const resultado = await criarTarefasMes(ano, mes, responsavelEmail);
+    
+    if (resultado.sucesso) {
+      // Log da atividade
+      await insertActivityLog({
+        userId: req.user.uid,
+        userEmail: req.user.email,
+        action: 'create_agenda_tributaria_mes',
+        taskId: `agenda-${ano}-${mes}`,
+        taskTitle: `Agenda Tributária ${mes}/${ano} (${resultado.tarefasCriadas} tarefas)`
+      });
+      
+      res.status(200).json({
+        message: `Agenda tributária de ${mes}/${ano} criada com sucesso!`,
+        ...resultado
+      });
+    } else {
+      res.status(400).json({
+        error: "Erro ao criar agenda tributária",
+        detalhes: resultado.erro
+      });
+    }
+    
+  } catch (error) {
+    console.error('[AGENDA-TRIBUTARIA] Erro ao criar tarefas do mês:', error.message);
+    res.status(500).json({ error: 'Erro ao criar tarefas do mês: ' + error.message });
+  }
+});
+
+// Endpoint para criar tarefas do ano completo
+app.post('/api/agenda-tributaria/criar-ano', authenticateToken, async (req, res) => {
+  try {
+    const { ano, responsavelEmail } = req.body;
+    
+    console.log('[AGENDA-TRIBUTARIA] Criando tarefas para ano completo:', { ano, responsavelEmail });
+    
+    // Verificar se é admin
+    const user = await getUserByUid(req.user.uid);
+    if (!user || user.cargo !== 'admin') {
+      return res.status(403).json({ error: "Apenas administradores podem criar tarefas da agenda tributária" });
+    }
+    
+    // Validar parâmetros
+    if (!ano || ano < 2020 || ano > 2030) {
+      return res.status(400).json({ error: "Ano é obrigatório e deve estar entre 2020 e 2030." });
+    }
+    
+    // Criar tarefas do ano inteiro
+    const resultados = await criarTarefasAnoCompleto(ano, responsavelEmail);
+    
+    const sucessos = resultados.filter(r => r.sucesso);
+    const erros = resultados.filter(r => !r.sucesso);
+    const totalTarefas = sucessos.reduce((total, r) => total + r.tarefasCriadas, 0);
+    
+    // Log da atividade
+    await insertActivityLog({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      action: 'create_agenda_tributaria_ano',
+      taskId: `agenda-${ano}`,
+      taskTitle: `Agenda Tributária ${ano} (${totalTarefas} tarefas, ${sucessos.length} meses)`
+    });
+    
+    res.status(200).json({
+      message: `Agenda tributária de ${ano} processada!`,
+      ano,
+      mesesProcessados: resultados.length,
+      sucessos: sucessos.length,
+      erros: erros.length,
+      totalTarefasCriadas: totalTarefas,
+      detalhes: {
+        sucessos: sucessos.map(s => ({
+          mes: s.mes,
+          tarefasCriadas: s.tarefasCriadas,
+          responsavel: s.responsavel
+        })),
+        erros: erros.map(e => ({
+          mes: e.mes,
+          erro: e.erro
+        }))
+      }
+    });
+    
+  } catch (error) {
+    console.error('[AGENDA-TRIBUTARIA] Erro ao criar tarefas do ano:', error.message);
+    res.status(500).json({ error: 'Erro ao criar tarefas do ano: ' + error.message });
+  }
+});
+
+// Endpoint para criar tarefas do próximo mês
+app.post('/api/agenda-tributaria/proximo-mes', authenticateToken, async (req, res) => {
+  try {
+    const { responsavelEmail } = req.body;
+    
+    console.log('[AGENDA-TRIBUTARIA] Criando tarefas para próximo mês:', { responsavelEmail });
+    
+    // Verificar se é admin
+    const user = await getUserByUid(req.user.uid);
+    if (!user || user.cargo !== 'admin') {
+      return res.status(403).json({ error: "Apenas administradores podem criar tarefas da agenda tributária" });
+    }
+    
+    // Calcular próximo mês
+    const dataAtual = new Date();
+    const proximoMes = dataAtual.getMonth() + 2; // +1 para próximo mês, +1 porque getMonth() é 0-based
+    const anoProximo = proximoMes > 12 ? dataAtual.getFullYear() + 1 : dataAtual.getFullYear();
+    const mesProximo = proximoMes > 12 ? 1 : proximoMes;
+    
+    console.log(`[AGENDA-TRIBUTARIA] Próximo mês calculado: ${mesProximo}/${anoProximo}`);
+    
+    // Criar tarefas
+    const resultado = await criarTarefasMes(anoProximo, mesProximo, responsavelEmail);
+    
+    if (resultado.sucesso) {
+      // Log da atividade
+      await insertActivityLog({
+        userId: req.user.uid,
+        userEmail: req.user.email,
+        action: 'create_agenda_tributaria_proximo_mes',
+        taskId: `agenda-${anoProximo}-${mesProximo}`,
+        taskTitle: `Agenda Tributária ${mesProximo}/${anoProximo} (${resultado.tarefasCriadas} tarefas)`
+      });
+      
+      res.status(200).json({
+        message: `Agenda tributária do próximo mês (${mesProximo}/${anoProximo}) criada com sucesso!`,
+        mesAtual: `${dataAtual.getMonth() + 1}/${dataAtual.getFullYear()}`,
+        proximoMes: `${mesProximo}/${anoProximo}`,
+        ...resultado
+      });
+    } else {
+      res.status(400).json({
+        error: "Erro ao criar agenda tributária do próximo mês",
+        detalhes: resultado.erro
+      });
+    }
+    
+  } catch (error) {
+    console.error('[AGENDA-TRIBUTARIA] Erro ao criar tarefas do próximo mês:', error.message);
+    res.status(500).json({ error: 'Erro ao criar tarefas do próximo mês: ' + error.message });
+  }
+});
+
+// ===== ENDPOINTS DO SISTEMA AUTOMATIZADO DE AGENDA TRIBUTÁRIA =====
+
+// Endpoint para buscar e atualizar a agenda tributária automaticamente
+app.get('/api/agenda-tributaria/buscar-atualizacoes', authenticateToken, async (req, res) => {
+  try {
+    console.log('[AGENDA-AUTOMATIZADA] Buscando atualizações da agenda tributária');
+    
+    // Verificar se é admin
+    const user = await getUserByUid(req.user.uid);
+    if (!user || user.cargo !== 'admin') {
+      return res.status(403).json({ error: "Apenas administradores podem buscar atualizações da agenda tributária" });
+    }
+    
+    // Buscar atualizações da agenda tributária
+    const agendaAtualizada = await buscarAgendaTributariaAtualizada();
+    
+    if (agendaAtualizada.sucesso) {
+      res.status(200).json({
+        message: "Agenda tributária atualizada com sucesso!",
+        dataUltimaAtualizacao: agendaAtualizada.dataAtualizacao,
+        totalObrigacoes: agendaAtualizada.totalObrigacoes,
+        obrigacoesPorMes: agendaAtualizada.obrigacoesPorMes,
+        fontes: agendaAtualizada.fontes
+      });
+    } else {
+      res.status(500).json({
+        error: "Erro ao buscar atualizações da agenda tributária",
+        detalhes: agendaAtualizada.erro
+      });
+    }
+    
+  } catch (error) {
+    console.error('[AGENDA-AUTOMATIZADA] Erro ao buscar atualizações:', error.message);
+    res.status(500).json({ error: 'Erro ao buscar atualizações: ' + error.message });
+  }
+});
+
+// Endpoint para listar obrigações tributárias completas (incluindo dados automatizados)
+app.get('/api/agenda-tributaria/obrigacoes-completas', authenticateToken, async (req, res) => {
+  try {
+    console.log('[AGENDA-AUTOMATIZADA] Listando obrigações completas');
+    
+    // Verificar se é admin
+    const user = await getUserByUid(req.user.uid);
+    if (!user || user.cargo !== 'admin') {
+      return res.status(403).json({ error: "Apenas administradores podem acessar as obrigações completas" });
+    }
+    
+    console.log('[AGENDA-AUTOMATIZADA] Tipo de AGENDA_TRIBUTARIA_COMPLETA:', typeof AGENDA_TRIBUTARIA_COMPLETA);
+    console.log('[AGENDA-AUTOMATIZADA] Chaves de AGENDA_TRIBUTARIA_COMPLETA:', Object.keys(AGENDA_TRIBUTARIA_COMPLETA));
+    
+    // Converter objeto para array de meses
+    const obrigacoesPorMes = Object.keys(AGENDA_TRIBUTARIA_COMPLETA).map(mes => {
+      const numeroMes = parseInt(mes);
+      const obrigacoesMes = AGENDA_TRIBUTARIA_COMPLETA[mes];
+      
+      return {
+        mes: numeroMes,
+        mesNome: new Date(0, numeroMes - 1).toLocaleString('pt-BR', { month: 'long' }),
+        totalObrigacoes: obrigacoesMes.length,
+        obrigacoes: obrigacoesMes.map(obr => ({
+          titulo: obr.titulo,
+          vencimento: obr.vencimento,
+          observacoes: obr.observacoes,
+          categoria: obr.categoria,
+          empresaTipo: obr.empresaTipo,
+          fonte: obr.fonte
+        }))
+      };
+    }).sort((a, b) => a.mes - b.mes); // Ordenar por mês
+    
+    const totalObrigacoes = obrigacoesPorMes.reduce((total, mes) => total + mes.totalObrigacoes, 0);
+    
+    console.log('[AGENDA-AUTOMATIZADA] Total de meses processados:', obrigacoesPorMes.length);
+    console.log('[AGENDA-AUTOMATIZADA] Total de obrigações:', totalObrigacoes);
+    
+    res.status(200).json({
+      totalMeses: obrigacoesPorMes.length,
+      totalObrigacoes,
+      dataUltimaAtualizacao: new Date().toISOString(),
+      obrigacoesPorMes
+    });
+    
+  } catch (error) {
+    console.error('[AGENDA-AUTOMATIZADA] Erro ao listar obrigações completas:', error.message);
+    console.error('[AGENDA-AUTOMATIZADA] Stack trace:', error.stack);
+    res.status(500).json({ error: 'Erro ao listar obrigações completas: ' + error.message });
+  }
+});
+
+// Endpoint para criar tarefas usando dados da API (sistema automatizado)
+app.post('/api/agenda-tributaria/criar-mes-api', authenticateToken, async (req, res) => {
+  try {
+    const { ano, mes, responsavelEmail, filtros } = req.body;
+    
+    console.log('[AGENDA-AUTOMATIZADA] Criando tarefas com dados da API:', { ano, mes, responsavelEmail, filtros });
+    
+    // Verificar se é admin
+    const user = await getUserByUid(req.user.uid);
+    if (!user || user.cargo !== 'admin') {
+      return res.status(403).json({ error: "Apenas administradores podem criar tarefas da agenda tributária" });
+    }
+    
+    // Validar parâmetros
+    if (!ano || !mes || mes < 1 || mes > 12) {
+      return res.status(400).json({ error: "Ano e mês são obrigatórios. Mês deve estar entre 1 e 12." });
+    }
+    
+    // Criar tarefas usando dados da API
+    const resultado = await criarTarefasComDadosAPI(ano, mes, responsavelEmail, filtros);
+    
+    if (resultado.sucesso) {
+      // Log da atividade
+      await insertActivityLog({
+        userId: req.user.uid,
+        userEmail: req.user.email,
+        action: 'create_agenda_tributaria_api_mes',
+        taskId: `agenda-api-${ano}-${mes}`,
+        taskTitle: `Agenda Tributária API ${mes}/${ano} (${resultado.tarefasCriadas} tarefas)`
+      });
+      
+      res.status(200).json({
+        message: `Agenda tributária automatizada de ${mes}/${ano} criada com sucesso!`,
+        sistemaUsado: 'automatizado',
+        ...resultado
+      });
+    } else {
+      res.status(400).json({
+        error: "Erro ao criar agenda tributária automatizada",
+        detalhes: resultado.erro
+      });
+    }
+    
+  } catch (error) {
+    console.error('[AGENDA-AUTOMATIZADA] Erro ao criar tarefas do mês com API:', error.message);
+    res.status(500).json({ error: 'Erro ao criar tarefas do mês com API: ' + error.message });
+  }
+});
+
+// Endpoint para criar tarefas do ano completo usando dados da API
+app.post('/api/agenda-tributaria/criar-ano-api', authenticateToken, async (req, res) => {
+  try {
+    const { ano, responsavelEmail, filtros } = req.body;
+    
+    console.log('[AGENDA-AUTOMATIZADA] Criando tarefas do ano com dados da API:', { ano, responsavelEmail, filtros });
+    
+    // Verificar se é admin
+    const user = await getUserByUid(req.user.uid);
+    if (!user || user.cargo !== 'admin') {
+      return res.status(403).json({ error: "Apenas administradores podem criar tarefas da agenda tributária" });
+    }
+    
+    // Validar parâmetros
+    if (!ano || ano < 2020 || ano > 2030) {
+      return res.status(400).json({ error: "Ano é obrigatório e deve estar entre 2020 e 2030." });
+    }
+    
+    let totalTarefas = 0;
+    let sucessos = 0;
+    let erros = 0;
+    const resultadosDetalhados = [];
+    
+    // Criar tarefas mês por mês
+    for (let mes = 1; mes <= 12; mes++) {
+      try {
+        const resultado = await criarTarefasComDadosAPI(ano, mes, responsavelEmail, filtros);
+        
+        if (resultado.sucesso) {
+          totalTarefas += resultado.tarefasCriadas;
+          sucessos++;
+          resultadosDetalhados.push({
+            mes,
+            sucesso: true,
+            tarefasCriadas: resultado.tarefasCriadas,
+            responsavel: resultado.responsavel
+          });
+        } else {
+          erros++;
+          resultadosDetalhados.push({
+            mes,
+            sucesso: false,
+            erro: resultado.erro
+          });
+        }
+      } catch (mesError) {
+        erros++;
+        resultadosDetalhados.push({
+          mes,
+          sucesso: false,
+          erro: mesError.message
+        });
+      }
+    }
+    
+    // Log da atividade
+    await insertActivityLog({
+      userId: req.user.uid,
+      userEmail: req.user.email,
+      action: 'create_agenda_tributaria_api_ano',
+      taskId: `agenda-api-${ano}`,
+      taskTitle: `Agenda Tributária API ${ano} (${totalTarefas} tarefas, ${sucessos} meses)`
+    });
+    
+    res.status(200).json({
+      message: `Agenda tributária automatizada de ${ano} processada!`,
+      sistemaUsado: 'automatizado',
+      ano,
+      mesesProcessados: 12,
+      sucessos,
+      erros,
+      totalTarefasCriadas: totalTarefas,
+      detalhes: {
+        sucessos: resultadosDetalhados.filter(r => r.sucesso),
+        erros: resultadosDetalhados.filter(r => !r.sucesso)
+      }
+    });
+    
+  } catch (error) {
+    console.error('[AGENDA-AUTOMATIZADA] Erro ao criar tarefas do ano com API:', error.message);
+    res.status(500).json({ error: 'Erro ao criar tarefas do ano com API: ' + error.message });
+  }
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
