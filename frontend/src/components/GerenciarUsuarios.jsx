@@ -135,12 +135,6 @@ const GerenciarUsuarios = () => {
                 <p className="text-gray-600">
                   Total de usuários cadastrados: <span className="font-semibold">{usuarios.length}</span>
                 </p>
-                <button
-                  onClick={() => navigate('/cadastro')}
-                  className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-                >
-                  Adicionar Novo Usuário
-                </button>
               </div>
             </div>
 

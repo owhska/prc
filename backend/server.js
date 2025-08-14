@@ -26,10 +26,26 @@ const { criarTarefasMes, criarTarefasAnoCompleto, OBRIGACOES_TRIBUTARIAS } = req
 const { criarTarefasComDadosAPI, buscarAgendaTributariaAtualizada, AGENDA_TRIBUTARIA_COMPLETA } = require('./scripts/agenda-tributaria-api');
 
 const app = express();
+const PORT = process.env.PORT || 3001;
 
+// Configurar CORS para permitir requisições do frontend
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:5173'], // Adicione os URLs do seu frontend (ex.: React, Vite)
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true // Habilita cookies e cabeçalhos de autenticação, se necessário
+}));
+
+// Middleware para parsear JSON
 app.use(express.json());
-app.use(cors());
 
+// Middleware para logar todas as requisições
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.path} at ${new Date().toISOString()}`);
+  next();
+});
+
+// Middleware de autenticação
 const authenticateToken = async (req, res, next) => {
   console.log('[AUTH] === INICIANDO VERIFICAÇÃO DE TOKEN ===');
   console.log('[AUTH] URL:', req.method, req.path);
@@ -86,8 +102,6 @@ const authenticateToken = async (req, res, next) => {
     res.status(401).json({ error: "Token inválido" });
   }
 };
-
-// ===== ENDPOINTS MIGRADOS PARA SQLITE =====
 
 // Endpoint de health check
 app.get('/api/health', (req, res) => {
@@ -291,11 +305,6 @@ app.delete("/api/usuarios/:id", authenticateToken, async (req, res) => {
     res.status(500).json({ error: "Erro ao remover usuário: " + error.message });
   }
 });
-
-
-
-
-
 
 // Endpoint para buscar horas trabalhadas de um mês específico
 app.get('/api/horas-trabalhadas/:userId/:year/:month', authenticateToken, async (req, res) => {
@@ -663,8 +672,6 @@ app.post("/api/change-password-direct", async (req, res) => {
   }
 });
 
-// ===== ENDPOINTS DE TAREFAS =====
-
 // Buscar todas as tarefas
 app.get("/api/tarefas", authenticateToken, async (req, res) => {
   try {
@@ -1009,8 +1016,6 @@ app.post("/api/logs", authenticateToken, async (req, res) => {
   }
 });
 
-// ===== ENDPOINTS PARA GERENCIAMENTO DE ARQUIVOS (SUBSTITUINDO FIREBASE STORAGE) =====
-
 // Configuração do Multer para upload de arquivos
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -1224,8 +1229,6 @@ app.delete('/api/files/:fileId', authenticateToken, async (req, res) => {
 // Endpoint estático para servir arquivos (alternativo ao download)
 app.use('/uploads', express.static(uploadsDir));
 
-// ===== ENDPOINTS DA AGENDA TRIBUTÁRIA =====
-
 // Endpoint para listar obrigações tributárias disponíveis
 app.get('/api/agenda-tributaria/obrigacoes', authenticateToken, async (req, res) => {
   try {
@@ -1420,8 +1423,6 @@ app.post('/api/agenda-tributaria/proximo-mes', authenticateToken, async (req, re
     res.status(500).json({ error: 'Erro ao criar tarefas do próximo mês: ' + error.message });
   }
 });
-
-// ===== ENDPOINTS DO SISTEMA AUTOMATIZADO DE AGENDA TRIBUTÁRIA =====
 
 // Endpoint para buscar e atualizar a agenda tributária automaticamente
 app.get('/api/agenda-tributaria/buscar-atualizacoes', authenticateToken, async (req, res) => {
@@ -1644,7 +1645,7 @@ app.post('/api/agenda-tributaria/criar-ano-api', authenticateToken, async (req, 
   }
 });
 
-const PORT = process.env.PORT || 3001;
+// Iniciar o servidor
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });

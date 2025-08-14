@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { Calendar, Plus, Filter, Bell, User, Clock, CheckCircle, AlertCircle, XCircle,
-  Eye, Trash2, FileText, Home, Settings, List, BarChart3, Maximize2, X, LogOut,
+  Eye, Trash2, FileText, Home, List, BarChart3, Maximize2, X, LogOut,
   Upload, Download, Image, File, AlertTriangle, Edit, RefreshCw, ChevronDown, ChevronUp, Loader2
 } from "lucide-react";
 import { AuthContext } from "../AuthContext";
@@ -27,7 +27,7 @@ const Calendario = () => {
   const [selectedTask, setSelectedTask] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [activeView, setActiveView] = useState("home");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   const [filters, setFilters] = useState({
     status: "todos",
     colaborador: "todos",
@@ -77,8 +77,8 @@ const Calendario = () => {
     responsavelId: "",
     dataVencimento: "",
     observacoes: "",
-    recorrente: false,
-    frequencia: "mensal",
+  recorrente: false,
+  frequencia: "mensal",
   });
 
   const [editTask, setEditTask] = useState({
@@ -1723,9 +1723,9 @@ const Calendario = () => {
               
               <div className="text-sm text-gray-600">
                 {!modoAvancado ? (
-                  <p>📋 Utiliza dados estáticos predefinidos para as obrigações tributárias.</p>
+                  <p> 📍 Utiliza dados estáticos predefinidos para as obrigações tributárias.</p>
                 ) : (
-                  <p>🚀 Utiliza dados atualizados da API para criar tarefas mais precisas e detalhadas.</p>
+                  <p> 📍 Utiliza dados atualizados da API para criar tarefas mais precisas e detalhadas.</p>
                 )}
               </div>
             </div>
@@ -1853,7 +1853,7 @@ const Calendario = () => {
                 <button
                   onClick={criarTarefasAno}
                   disabled={agendaLoading}
-                  className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                  className="bg-blue-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
                 >
                   {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
                   Criar Ano Completo ({selectedYear})
@@ -1862,7 +1862,7 @@ const Calendario = () => {
                 <button
                   onClick={criarTarefasProximoMes}
                   disabled={agendaLoading}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                  className="bg-blue-600 hover:bg-purple-700 disabled:bg-purple-400 text-balck px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
                 >
                   {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
                   Criar Próximo Mês
@@ -1870,7 +1870,7 @@ const Calendario = () => {
 
                 <button
                   onClick={() => setShowObrigacoes(!showObrigacoes)}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                  className="bg-blue-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
                 >
                   <Eye className="w-4 h-4" />
                   Ver Obrigações
@@ -2094,63 +2094,67 @@ const Calendario = () => {
     <div className="min-h-screen bg-gray-50 flex">
       <div
         className={`sidebar bg-white border-r transition-all duration-300 flex flex-col ${
-          sidebarCollapsed ? "w-16" : "w-64"
+          sidebarCollapsed ? "w-17" : "w-64"
         }`}
       >
-        <div className="sidebar-header p-4">
+        <div className={`sidebar bg-white border-r transition-all duration-300 flex flex-col ${sidebarCollapsed ? "w-20" : "w-64"}`}>
+  <div className="sidebar-header p-3">
+    {!sidebarCollapsed && (
+      <div className="flex items-center gap-2">
+        <Calendar className="w-5 h-5 text-blue-600" aria-hidden="true" />
+        <h1 className="text-lg font-semibold text-gray-800">Sistema de Tarefas</h1>
+      </div>
+    )}
+  </div>
+  <nav className="sidebar-nav flex-1">
+    {menuItems.map((item) => {
+      const Icon = item.icon;
+      return (
+        <button
+          key={item.id}
+          onClick={() => setActiveView(item.id)}
+          className={`w-full flex items-center justify-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
+            activeView === item.id
+              ? "bg-blue-50 text-blue-600 border-r-2 border-blue-600"
+              : "text-gray-700"
+          }`}
+          title={sidebarCollapsed ? item.label : ""}
+          aria-label={item.label}
+        >
+          <Icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
           {!sidebarCollapsed && (
-            <div className="flex items-center gap-2">
-              <Calendar className="w-6 h-6 text-blue-600" />
-              <h1 className="text-lg font-semibold text-gray-800">Sistema de Tarefas</h1>
+            <div className="flex flex-col justify-center">
+              <span className="font-medium text-sm leading-5">{item.label}</span>
+              <span className="text-xs text-gray-500 leading-4">{item.description}</span>
             </div>
           )}
-        </div>
-        <nav className="sidebar-nav mt-4 flex-1">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
-                  activeView === item.id
-                    ? "active bg-blue-50 text-blue-600 border-r-2 border-blue-600"
-                    : "text-gray-700"
-                }`}
-                title={sidebarCollapsed ? item.label : ""}
-              >
-                <Icon className="w-5 h-5 flex-shrink-0" />
-                {!sidebarCollapsed && (
-                  <div>
-                    <div className="font-medium">{item.label}</div>
-                    <div className="text-xs text-gray-500">{item.description}</div>
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </nav>
-        <div className="p-4">
-          {!sidebarCollapsed && (
-            <button
-              onClick={minimizeSidebar}
-              className="w-full flex items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Minimizar Sidebar"
-            >
-              <X className="w-5 h-5 text-gray-700" />
-            </button>
-          )}
-          {sidebarCollapsed && (
-            <button
-              onClick={maximizeSidebar}
-              className="w-full flex items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Maximizar Sidebar"
-            >
-              <Maximize2 className="w-5 h-5 text-gray-700" />
-            </button>
-          )}
-        </div>
-      </div>
+        </button>
+      );
+    })}
+  </nav>
+  <div className="p-4">
+    {!sidebarCollapsed && (
+      <button
+        onClick={minimizeSidebar}
+        className="w-full flex items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        title="Minimizar Sidebar"
+        aria-label="Minimizar Sidebar"
+      >
+        <X className="w-6 h-6 text-gray-700" aria-hidden="true" />
+      </button>
+    )}
+    {sidebarCollapsed && (
+      <button
+        onClick={maximizeSidebar}
+        className="w-full flex items-center justify-center p-2 bg-white shadow-md hover:bg-gray-100 rounded-lg transition-colors"
+        title="Maximizar Sidebar"
+        aria-label="Maximizar Sidebar"
+      >
+        <Maximize2 className="w-6 h-6 text-gray-600" aria-hidden="true" />
+      </button>
+    )}
+  </div>
+</div> </div>
 
       <div className="flex-1 flex flex-col">
         <header className="bg-white border-b px-6 py-4">
@@ -2164,7 +2168,7 @@ const Calendario = () => {
               </p>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-4">
                 <User className="w-5 h-5 text-gray-400" />
                 <span className="text-sm font-medium text-gray-700">{currentUser.nome}</span>
                 <span
@@ -2257,7 +2261,7 @@ const Calendario = () => {
                   ></textarea>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Recorrente</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1"></label>
                   <input
                     type="checkbox"
                     className="mr-2 leading-tight"
