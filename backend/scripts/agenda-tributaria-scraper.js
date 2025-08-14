@@ -56,11 +56,18 @@ async function buscarAgendaTributariaRFB() {
     
     // Encontrar links para páginas mensais
     const mesesLinks = [];
+    const mesesMap = {
+      'janeiro': 1, 'fevereiro': 2, 'março': 3, 'marco': 3, 'abril': 4, 'maio': 5, 'junho': 6,
+      'julho': 7, 'agosto': 8, 'setembro': 9, 'outubro': 10, 'novembro': 11, 'dezembro': 12
+    };
+    
     $('a[href*="/assuntos/agenda-tributaria/2025/"]').each((i, el) => {
       const href = $(el).attr('href');
-      const mesesValidos = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
-      if (mesesValidos.some(mes => href.toLowerCase().includes(mes))) {
-        mesesLinks.push(new URL(href, 'https://www.gov.br').href);
+      const texto = $(el).text().toLowerCase();
+      const mesesValidos = Object.keys(mesesMap);
+      if (mesesValidos.some(mes => href.toLowerCase().includes(mes) || texto.includes(mes))) {
+        const fullUrl = href.startsWith('http') ? href : new URL(href, 'https://www.gov.br').href;
+        mesesLinks.push(fullUrl);
       }
     });
     
@@ -68,206 +75,166 @@ async function buscarAgendaTributariaRFB() {
 
     // Processar cada mês
     for (const [index, link] of mesesLinks.entries()) {
-      const mesIndex = index + 1;
-      console.log(`📅 Processando mês ${mesIndex} (${link})...`);
-      
       try {
-        const mesResponse = await axios.get(link, { headers, timeout: 30000 });
+        console.log(`📅 Processando link ${index + 1}/${mesesLinks.length}: ${link}`);
+        
+        const mesResponse = await axios.get(link, { 
+          headers, 
+          timeout: 30000,
+          maxRedirects: 5
+        });
         const $mes = cheerio.load(mesResponse.data);
         
+        // Identificar mês a partir da URL ou conteúdo
+        let mesIdentificado = null;
+        for (const [nomeMes, numeroMes] of Object.entries(mesesMap)) {
+          if (link.toLowerCase().includes(nomeMes) || 
+              $mes('title').text().toLowerCase().includes(nomeMes) ||
+              $mes('h1, h2, h3').text().toLowerCase().includes(nomeMes)) {
+            mesIdentificado = numeroMes;
+            break;
+          }
+        }
+        
+        if (!mesIdentificado) {
+          console.warn(`⚠️ Não foi possível identificar o mês para: ${link}`);
+          continue;
+        }
+        
+        const obrigacoesMes = [];
+        
         // Parsear tabelas de obrigações
-        $mes('table.govbr-table, .tabela-obrigacoes').each((i, tabela) => {
+        $mes('table').each((i, tabela) => {
           $mes(tabela).find('tr').each((j, row) => {
             const colunas = $mes(row).find('td');
-            if (colunas.length >= 4) { // Código, Descrição, Período, Vencimento
-              const codigo = colunas.eq(0).text().trim();
-              const obrigacao = colunas.eq(1).text().trim();
-              const periodo = colunas.eq(2).text().trim();
-              const prazo = colunas.eq(3).text().trim();
+            if (colunas.length >= 3) {
+              const titulo = colunas.eq(0).text().trim();
+              const prazo = colunas.eq(1).text().trim();
+              const observacoes = colunas.length > 2 ? colunas.eq(2).text().trim() : '';
               
-              if (obrigacao && prazo && obrigacao.length > 5 && !obrigacao.match(/^(tabela|item|data)$/i)) {
-                // Regex mais robusto para capturar datas
-                const dataMatch = prazo.match(/(\d{1,2})(?:º)?(?: a \d{1,2})?[-\/](\w+|\d{1,2})[-\/](\d{4})/i);
+              if (titulo && prazo && titulo.length > 5 && !titulo.match(/^(título|obrigação|data)$/i)) {
+                // Extrair data do prazo
+                const dataMatch = prazo.match(/(\d{1,2})(?:\/(\d{1,2}))?\/(\d{4})|até\s+(\d{1,2})(?:º)?/i);
                 if (dataMatch) {
-                  const dia = parseInt(dataMatch[1]);
-                  let mes = parseInt(dataMatch[2]) || 0;
-                  const ano = parseInt(dataMatch[3]) || anoAtual;
-                  
-                  const mesesMap = {
-                    'janeiro': 1, 'fevereiro': 2, 'marco': 3, 'abril': 4, 'maio': 5, 'junho': 6,
-                    'julho': 7, 'agosto': 8, 'setembro': 9, 'outubro': 10, 'novembro': 11, 'dezembro': 12
-                  };
-                  if (!mes) {
-                    const mesNome = dataMatch[2].toLowerCase();
-                    mes = mesesMap[mesNome];
+                  const dia = parseInt(dataMatch[1] || dataMatch[4]);
+                  if (dia >= 1 && dia <= 31) {
+                    obrigacoesMes.push({
+                      titulo: titulo,
+                      vencimento: dia,
+                      observacoes: observacoes || `Prazo: ${prazo}. Extraído da Receita Federal.`,
+                      fonte: 'RFB Scraper',
+                      link: link
+                    });
                   }
-                  
-                  if (mes && dia >= 1 && dia <= 31 && ano === anoAtual) {
-                    if (!agendaCompleta[mes]) {
-                      agendaCompleta[mes] = [];
-                    }
-                    
-                    // Evitar duplicatas com hash mais específico
-                    const hash = `${obrigacao.toLowerCase()}-${dia}-${mes}-${ano}`;
-                    const existe = agendaCompleta[mes].some(item => 
-                      `${item.titulo.toLowerCase()}-${item.vencimento}-${mes}-${ano}` === hash
-                    );
-                    
-                    if (!existe) {
-                      agendaCompleta[mes].push({
-                        codigo: codigo || 'N/A',
-                        titulo: obrigacao,
-                        vencimento: dia,
-                        periodo: periodo || 'Não especificado',
-                        observacoes: `Código: ${codigo}. Período de apuração: ${periodo}. Conforme legislação vigente.`,
-                        fonte: 'Receita Federal do Brasil',
-                        dataAtualizacao: new Date().toISOString()
-                      });
-                      console.log(`✅ Obrigação adicionada: ${obrigacao} (Vencimento: ${dia}/${mes}/${ano})`);
-                    } else {
-                      console.log(`⚠️ Obrigação ignorada (duplicata): ${obrigacao}`);
-                    }
-                  } else {
-                    console.log(`⚠️ Dados inválidos para obrigação: ${obrigacao} (Dia: ${dia}, Mês: ${mes}, Ano: ${ano})`);
-                  }
-                } else {
-                  console.log(`⚠️ Formato de data inválido para: ${prazo}`);
                 }
               }
             }
           });
         });
         
-        // Parsear listas adicionais
-        $mes('ul.lista-obrigacoes, .obrigacoes').each((i, lista) => {
+        // Parsear listas de obrigações
+        $mes('ul, ol').each((i, lista) => {
           $mes(lista).find('li').each((j, item) => {
             const texto = $mes(item).text().trim();
-            const dataMatch = texto.match(/(.+?)\s*[-:]\s*(\d{1,2})(?:º)?(?: a \d{1,2})?[-\/](\w+|\d{1,2})[-\/](\d{4})/i);
-            if (dataMatch) {
-              const obrigacao = dataMatch[1].trim();
-              const dia = parseInt(dataMatch[2]);
-              let mes = parseInt(dataMatch[3]) || 0;
-              const ano = parseInt(dataMatch[4]) || anoAtual;
-              
-              const mesesMap = {
-                'janeiro': 1, 'fevereiro': 2, 'marco': 3, 'abril': 4, 'maio': 5, 'junho': 6,
-                'julho': 7, 'agosto': 8, 'setembro': 9, 'outubro': 10, 'novembro': 11, 'dezembro': 12
-              };
-              if (!mes) {
-                const mesNome = dataMatch[3].toLowerCase();
-                mes = mesesMap[mesNome];
-              }
-              
-              if (mes && dia >= 1 && dia <= 31 && ano === anoAtual) {
-                if (!agendaCompleta[mes]) {
-                  agendaCompleta[mes] = [];
-                }
+            
+            // Procurar padrões de data no texto
+            const patterns = [
+              /(.+?)\s*[-–:]\s*até\s+(\d{1,2})(?:º)?/i,
+              /(.+?)\s*[-–:]\s*(\d{1,2})(?:º)?\s*(?:de|\/)\w+/i,
+              /(.+?)\s*vencimento\s*:?\s*(\d{1,2})(?:º)?/i
+            ];
+            
+            for (const pattern of patterns) {
+              const match = texto.match(pattern);
+              if (match) {
+                const titulo = match[1].trim();
+                const dia = parseInt(match[2]);
                 
-                const hash = `${obrigacao.toLowerCase()}-${dia}-${mes}-${ano}`;
-                const existe = agendaCompleta[mes].some(item => 
-                  `${item.titulo.toLowerCase()}-${item.vencimento}-${mes}-${ano}` === hash
-                );
-                
-                if (!existe) {
-                  agendaCompleta[mes].push({
-                    codigo: 'N/A',
-                    titulo: obrigacao,
-                    vencimento: dia,
-                    periodo: 'Não especificado',
-                    observacoes: `Extraído de lista. Conforme Receita Federal.`,
-                    fonte: 'Receita Federal do Brasil',
-                    dataAtualizacao: new Date().toISOString()
-                  });
-                  console.log(`✅ Obrigação adicionada (lista): ${obrigacao} (Vencimento: ${dia}/${mes}/${ano})`);
-                } else {
-                  console.log(`⚠️ Obrigação ignorada (duplicata em lista): ${obrigacao}`);
+                if (titulo.length > 5 && dia >= 1 && dia <= 31) {
+                  const existe = obrigacoesMes.some(o => 
+                    o.titulo.toLowerCase().includes(titulo.toLowerCase().substring(0, 10))
+                  );
+                  
+                  if (!existe) {
+                    obrigacoesMes.push({
+                      titulo: titulo,
+                      vencimento: dia,
+                      observacoes: `Texto original: ${texto}. Extraído da Receita Federal.`,
+                      fonte: 'RFB Scraper',
+                      link: link
+                    });
+                  }
+                  break;
                 }
-              } else {
-                console.log(`⚠️ Dados inválidos para obrigação (lista): ${obrigacao} (Dia: ${dia}, Mês: ${mes}, Ano: ${ano})`);
               }
-            } else {
-              console.log(`⚠️ Formato de data inválido para (lista): ${texto}`);
             }
           });
         });
         
+        if (obrigacoesMes.length > 0) {
+          agendaCompleta[mesIdentificado] = obrigacoesMes;
+          console.log(`✅ Mês ${mesIdentificado}: ${obrigacoesMes.length} obrigações encontradas`);
+        }
+        
+        // Pequeno delay para não sobrecarregar o servidor
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
       } catch (error) {
-        console.warn(`⚠️ Erro ao acessar página do mês ${mesIndex}:`, error.message);
+        console.warn(`⚠️ Erro ao processar link ${link}:`, error.message);
       }
     }
     
-    // Verificar se obteve dados suficientes
-    const totalObrigacoes = Object.values(agendaCompleta).reduce((sum, arr) => sum + arr.length, 0);
-    console.log(`📊 Total de obrigações coletadas: ${totalObrigacoes}`);
+    // Atualizar cache
+    cacheAgendaTributaria = agendaCompleta;
+    cacheExpiry = Date.now() + CACHE_DURATION;
     
-    if (totalObrigacoes === 0) {
-      console.warn('⚠️ Não foi possível buscar dados atualizados. Usando dados de fallback...');
-      agendaCompleta = await obterDadosFallback();
-    } else {
-      console.log(`✅ Encontradas obrigações para ${Object.keys(agendaCompleta).length} meses`);
-    }
+    // Salvar backup local
+    await salvarBackupAgenda(agendaCompleta);
     
-    // Salvar cache apenas se houver dados válidos
-    if (totalObrigacoes > 0) {
-      cacheAgendaTributaria = agendaCompleta;
-      cacheExpiry = Date.now() + CACHE_DURATION;
-      await salvarBackupLocal(agendaCompleta);
-    } else {
-      console.warn('⚠️ Cache não atualizado devido a dados insuficientes');
-      cacheAgendaTributaria = null;
-      cacheExpiry = null;
-    }
-    
-    console.log(`✅ Agenda tributária atualizada! ${Object.keys(agendaCompleta).length} meses processados.`);
-    
+    console.log(`✅ Scraping concluído! Meses processados: ${Object.keys(agendaCompleta).length}`);
     return agendaCompleta;
     
   } catch (error) {
     console.error('❌ Erro ao buscar agenda tributária:', error.message);
     
     // Tentar carregar backup local
-    const backup = await carregarBackupLocal();
+    const backup = await carregarBackupAgenda();
     if (backup) {
-      console.log('📋 Usando backup local da agenda tributária');
+      console.log('📋 Usando backup local da agenda');
       return backup;
     }
     
-    // Último recurso: dados estáticos
-    console.log('📋 Usando dados estáticos como último recurso');
-    return await obterDadosFallback();
+    throw error;
   }
 }
 
 /**
  * Salva backup local da agenda tributária
  */
-async function salvarBackupLocal(agenda) {
+async function salvarBackupAgenda(agenda) {
   try {
-    const backupPath = path.join(__dirname, 'backup-agenda-tributaria.json');
-    await fs.access(path.dirname(backupPath), fs.constants.W_OK);
+    const backupPath = path.join(__dirname, 'backup-agenda-scraper.json');
     const dados = {
       agenda,
       dataAtualizacao: new Date().toISOString(),
-      fonte: 'Receita Federal do Brasil'
+      fonte: 'Receita Federal do Brasil (Scraper)'
     };
-    
     await fs.writeFile(backupPath, JSON.stringify(dados, null, 2), 'utf8');
-    console.log('💾 Backup local salvo com sucesso');
+    console.log('💾 Backup da agenda salvo com sucesso');
   } catch (error) {
-    console.warn('⚠️ Erro ao salvar backup local:', error.message);
+    console.warn('⚠️ Erro ao salvar backup da agenda:', error.message);
   }
 }
 
 /**
  * Carrega backup local da agenda tributária
  */
-async function carregarBackupLocal() {
+async function carregarBackupAgenda() {
   try {
-    const backupPath = path.join(__dirname, 'backup-agenda-tributaria.json');
+    const backupPath = path.join(__dirname, 'backup-agenda-scraper.json');
     const dados = await fs.readFile(backupPath, 'utf8');
     const backup = JSON.parse(dados);
     
-    // Verificar se o backup não está muito antigo (máximo 7 dias)
     const dataBackup = new Date(backup.dataAtualizacao);
     const agora = new Date();
     const diasDiferenca = (agora - dataBackup) / (1000 * 60 * 60 * 24);
@@ -275,127 +242,44 @@ async function carregarBackupLocal() {
     if (diasDiferenca <= 7) {
       return backup.agenda;
     } else {
-      console.log('📋 Backup local está desatualizado');
+      console.log('📋 Backup da agenda está desatualizado');
       return null;
     }
   } catch (error) {
-    // Não logar ENOENT como erro, pois é esperado se o backup não existe
-    if (error.code !== 'ENOENT') {
-      console.warn('⚠️ Erro ao carregar backup local:', error.message);
+    return null;
+  }
+}
+
+/**
+ * Cria tarefas com base nos dados extraídos
+ */
+async function criarTarefasComScraper(ano, mes, responsavelEmail = null) {
+  try {
+    console.log(`\n=== Criando tarefas via Scraper - ${mes}/${ano} ===`);
+    
+    // Validar entrada
+    const anoAtual = new Date().getFullYear();
+    if (!ano || ano < 2000 || ano > anoAtual + 1) {
+      throw new Error(`Ano inválido: ${ano}`);
     }
-    return null;
-  }
-}
-
-/**
- * Dados de fallback baseados na legislação atual
- */
-async function obterDadosFallback() {
-  return {
-    1: [ // Janeiro
-      {
-        codigo: '6813',
-        titulo: 'IRRF - Fundo de Investimento em Ações',
-        vencimento: 15,
-        periodo: '1º a 10/janeiro/2025',
-        observacoes: 'Recolhimento do Imposto de Renda Retido na Fonte. Transmitir via e-CAC.',
-        fonte: 'Legislação vigente'
-      },
-      {
-        codigo: '0561',
-        titulo: 'EFD - Contribuições',
-        vencimento: 20,
-        periodo: 'Dezembro/2024',
-        observacoes: 'Escrituração Fiscal Digital das Contribuições incidentes sobre a Receita.',
-        fonte: 'Legislação vigente'
-      },
-      {
-        codigo: '1234',
-        titulo: 'ICMS - Diferencial de Alíquota',
-        vencimento: 20,
-        periodo: 'Dezembro/2024',
-        observacoes: 'Pagamento do diferencial de alíquota de ICMS.',
-        fonte: 'Legislação vigente'
-      },
-      {
-        codigo: '5678',
-        titulo: 'DCTF - Declaração de Débitos e Créditos',
-        vencimento: 21,
-        periodo: 'Dezembro/2024',
-        observacoes: 'Entrega da Declaração de Débitos e Créditos Tributários Federais.',
-        fonte: 'Legislação vigente'
-      }
-    ]
-  };
-}
-
-/**
- * Busca dados de uma API alternativa (BrasilAPI para feriados)
- */
-async function buscarDadosAPIAlternativa() {
-  try {
-    console.log('🔄 Tentando APIs alternativas...');
+    if (!mes || mes < 1 || mes > 12) {
+      throw new Error(`Mês inválido: ${mes}`);
+    }
     
-    const response = await axios.get(`https://brasilapi.com.br/api/feriados/v1/2025`, {
-      timeout: 10000
-    });
+    // Buscar dados atualizados
+    const agendaCompleta = await buscarAgendaTributariaRFB();
     
-    const feriados = response.data.filter(f => f.type === 'national');
-    const feriadosMap = {};
-    feriados.forEach(feriado => {
-      const data = new Date(feriado.date);
-      const chave = `${data.getMonth() + 1}-${data.getDate()}`;
-      feriadosMap[chave] = feriado.name;
-    });
+    if (!agendaCompleta[mes] || agendaCompleta[mes].length === 0) {
+      throw new Error(`Nenhuma obrigação encontrada para o mês ${mes}`);
+    }
     
-    console.log(`✅ Encontrados ${Object.keys(feriadosMap).length} feriados nacionais`);
-    return { feriados: feriadosMap };
-    
-  } catch (error) {
-    console.warn('⚠️ Erro ao buscar dados de APIs alternativas:', error.message);
-    return null;
-  }
-}
-
-/**
- * Atualiza a agenda tributária com dados da Receita Federal
- */
-async function atualizarAgendaTributaria() {
-  try {
-    console.log('🚀 Iniciando atualização da agenda tributária...');
-    
-    const agendaAtualizada = await buscarAgendaTributariaRFB();
-    const dadosAdicionais = await buscarDadosAPIAlternativa();
-    
-    console.log('✅ Atualização concluída com sucesso!');
-    
-    return {
-      agenda: agendaAtualizada,
-      feriados: dadosAdicionais?.feriados || {},
-      dataAtualizacao: new Date().toISOString()
-    };
-    
-  } catch (error) {
-    console.error('❌ Erro na atualização:', error.message);
-    throw error;
-  }
-}
-
-/**
- * Cria tarefas usando dados atualizados da Receita Federal
- */
-async function criarTarefasComDadosAtualizados(ano, mes, responsavelEmail = null) {
-  try {
-    console.log(`\n=== Criando tarefas com dados atualizados - ${mes}/${ano} ===`);
-    
-    const dadosAtualizados = await atualizarAgendaTributaria();
-    
-    // Validar usuário responsável
+    // Buscar responsável
     let responsavel;
     if (responsavelEmail) {
       responsavel = await getUserByEmail(responsavelEmail);
       if (!responsavel) {
         console.log(`❌ Email ${responsavelEmail} não encontrado. Buscando administrador...`);
+        responsavel = null;
       }
     }
     
@@ -407,125 +291,59 @@ async function criarTarefasComDadosAtualizados(ano, mes, responsavelEmail = null
       }
     }
     
-    console.log(`✅ Responsável definido: ${responsavel.nome_completo} (${responsavel.email}, UID: ${responsavel.uid})`);
+    console.log(`✅ Responsável definido: ${responsavel.nome_completo} (${responsavel.email})`);
     
-    const obrigacoesMes = dadosAtualizados.agenda[mes] || [];
-    if (!obrigacoesMes.length) {
-      console.warn(`⚠️ Nenhuma obrigação encontrada para o mês ${mes}`);
-      return {
-        sucesso: false,
-        erro: `Nenhuma obrigação encontrada para o mês ${mes}`,
-        tarefasCriadas: 0,
-        detalhes: { erros: [`Nenhuma obrigação encontrada para ${mes}/${ano}`], duplicatas: [] }
-      };
-    }
-    
-    console.log(`📋 Processando ${obrigacoesMes.length} obrigações para ${mes}/${ano}`);
-    console.log('Obrigações:', JSON.stringify(obrigacoesMes, null, 2));
-    
+    const obrigacoes = agendaCompleta[mes];
     const tarefasCriadas = [];
-    const erros = [];
-    const duplicatas = [];
     
-    for (const obrigacao of obrigacoesMes) {
+    // Criar tarefas
+    for (const obrigacao of obrigacoes) {
+      const dataVencimento = new Date(ano, mes - 1, obrigacao.vencimento);
+      
+      const taskData = {
+        id: uuidv4(),
+        titulo: obrigacao.titulo,
+        responsavel: responsavel.nome_completo,
+        responsavelId: responsavel.uid,
+        dataVencimento: dataVencimento.toISOString(),
+        observacoes: `${obrigacao.observacoes}\n\n📅 Vencimento: ${obrigacao.vencimento}/${mes}/${ano}\n🔍 Fonte: ${obrigacao.fonte}\n🌐 Link: ${obrigacao.link}\n📊 Extraído em: ${new Date().toLocaleDateString('pt-BR')}`,
+        recorrente: true,
+        frequencia: 'mensal'
+      };
+      
       try {
-        let dataVencimento = new Date(ano, mes - 1, obrigacao.vencimento);
-        if (isNaN(dataVencimento.getTime())) {
-          throw new Error(`Data de vencimento inválida para ${obrigacao.titulo}: ${obrigacao.vencimento}/${mes}/${ano}`);
+        // Verificar se tarefa já existe
+        const existe = await checkTaskExists(taskData.titulo, dataVencimento);
+        if (!existe) {
+          await createTask(taskData);
+          tarefasCriadas.push(taskData);
+          console.log(`✅ ${obrigacao.titulo} - Vencimento: ${dataVencimento.toLocaleDateString('pt-BR')}`);
+        } else {
+          console.log(`⏭️ Tarefa já existe: ${obrigacao.titulo}`);
         }
-        
-        dataVencimento = ajustarDiaUtilComFeriados(dataVencimento, dadosAtualizados.feriados);
-        const dataVencimentoStr = dataVencimento.toISOString().split('T')[0];
-        
-        // Verificar se a tarefa já existe
-        const tarefaExiste = await checkTaskExists(obrigacao.titulo, dataVencimentoStr, responsavel.uid);
-        if (tarefaExiste) {
-          console.log(`⚠️ Tarefa já existe: ${obrigacao.titulo} (Vencimento: ${dataVencimento.toLocaleDateString('pt-BR')})`);
-          duplicatas.push(`Tarefa já existe: ${obrigacao.titulo} (Vencimento: ${dataVencimentoStr})`);
-          continue;
-        }
-        
-        const taskData = {
-          id: uuidv4(),
-          titulo: obrigacao.titulo,
-          responsavel: responsavel.nome_completo,
-          responsavelId: responsavel.uid,
-          dataVencimento: dataVencimento.toISOString(),
-          observacoes: `${obrigacao.observacoes}\n\n📅 Vencimento original: ${obrigacao.vencimento}/${mes}/${ano}` +
-                      (obrigacao.fonte ? `\n🔍 Fonte: ${obrigacao.fonte}` : '') +
-                      `\n📊 Dados atualizados em: ${new Date(dadosAtualizados.dataAtualizacao).toLocaleDateString('pt-BR')}`,
-          recorrente: true,
-          frequencia: 'mensal'
-        };
-        
-        await createTask(taskData);
-        tarefasCriadas.push(taskData);
-        console.log(`✅ Tarefa criada: ${obrigacao.titulo} - Vencimento: ${dataVencimento.toLocaleDateString('pt-BR')}`);
       } catch (error) {
         console.error(`❌ Erro ao criar tarefa "${obrigacao.titulo}": ${error.message}`);
-        erros.push(`Erro ao criar tarefa "${obrigacao.titulo}": ${error.message}`);
       }
     }
     
-    console.log(`\n🎉 Concluído! ${tarefasCriadas.length} tarefas criadas para ${mes}/${ano}`);
-    console.log(`📧 Responsável: ${responsavel.nome_completo} (${responsavel.email})`);
-    console.log(`🔄 Dados atualizados da Receita Federal`);
-    console.log(`❌ Erros encontrados: ${erros.length}`);
-    console.log(`🔄 Duplicatas ignoradas: ${duplicatas.length}`);
-    if (erros.length > 0) {
-      console.log('Erros detalhados:', erros);
-    }
-    if (duplicatas.length > 0) {
-      console.log('Duplicatas detalhadas:', duplicatas);
-    }
+    console.log(`\n🎉 Scraper concluído! ${tarefasCriadas.length} tarefas criadas para ${mes}/${ano}`);
     
     return {
-      sucesso: tarefasCriadas.length > 0,
+      sucesso: true,
       mes,
       ano,
       responsavel: responsavel.nome_completo,
       tarefasCriadas: tarefasCriadas.length,
-      tarefas: tarefasCriadas,
-      fonteDados: 'Receita Federal do Brasil (atualizado)',
-      detalhes: { erros, duplicatas }
+      tarefas: tarefasCriadas
     };
     
   } catch (error) {
-    console.error(`❌ Erro ao criar tarefas atualizadas para ${mes}/${ano}:`, error.message);
+    console.error(`❌ Erro no scraper para ${mes}/${ano}:`, error.message);
     return {
       sucesso: false,
-      erro: error.message,
-      tarefasCriadas: 0,
-      detalhes: { erros: [error.message], duplicatas: [] }
+      erro: error.message
     };
   }
-}
-
-/**
- * Ajusta data para dia útil considerando fins de semana e feriados
- */
-function ajustarDiaUtilComFeriados(data, feriados = {}) {
-  let dataAjustada = new Date(data);
-  let tentativas = 0;
-  const maxTentativas = 10;
-  
-  while (tentativas < maxTentativas) {
-    const diaSemana = dataAjustada.getDay();
-    const chave = `${dataAjustada.getMonth() + 1}-${dataAjustada.getDate()}`;
-    
-    if (diaSemana === 0 || diaSemana === 6 || feriados[chave]) {
-      dataAjustada.setDate(dataAjustada.getDate() + 1);
-      tentativas++;
-    } else {
-      break;
-    }
-  }
-  
-  if (tentativas >= maxTentativas) {
-    console.warn(`⚠️ Máximo de tentativas atingido para ajustar data: ${data.toLocaleDateString('pt-BR')}`);
-  }
-  
-  return dataAjustada;
 }
 
 /**
@@ -537,76 +355,72 @@ async function main() {
   
   if (!comando) {
     console.log(`
-🏛️  AGENDA TRIBUTÁRIA ATUALIZADA (RECEITA FEDERAL)
-===============================================
-
-Este script busca informações atualizadas diretamente da Receita Federal.
+🔍 SCRAPER DA AGENDA TRIBUTÁRIA
+==============================
 
 Uso:
-  node agenda-tributaria-scraper.js atualizar
-  node agenda-tributaria-scraper.js criar-mes <ano> <mes> [email_responsavel]
-  node agenda-tributaria-scraper.js testar-conexao
-  node agenda-tributaria-scraper.js limpar-cache
+  node agenda-tributaria-scraper.js buscar                    # Buscar agenda atualizada
+  node agenda-tributaria-scraper.js criar <ano> <mes> [email] # Criar tarefas via scraper
+  node agenda-tributaria-scraper.js limpar-cache              # Limpar cache
+  node agenda-tributaria-scraper.js ajuda                     # Ver ajuda
 
 Exemplos:
-  node agenda-tributaria-scraper.js atualizar                    # Atualizar dados da RFB
-  node agenda-tributaria-scraper.js criar-mes 2025 3             # Criar tarefas mar/2025
-  node agenda-tributaria-scraper.js criar-mes 2025 3 admin@empresa.com
-  node agenda-tributaria-scraper.js testar-conexao               # Testar acesso à RFB
+  node agenda-tributaria-scraper.js buscar
+  node agenda-tributaria-scraper.js criar 2025 3 admin@empresa.com
     `);
     return;
   }
   
   try {
     switch (comando.toLowerCase()) {
-      case 'atualizar':
-        console.log('🔄 Atualizando dados da Receita Federal...');
-        const dados = await atualizarAgendaTributaria();
-        console.log('\n✅ Atualização concluída!');
-        console.log(`📊 Meses com dados: ${Object.keys(dados.agenda).length}`);
-        console.log(`🗓️ Feriados carregados: ${Object.keys(dados.feriados).length}`);
+      case 'buscar':
+        const agenda = await buscarAgendaTributariaRFB();
+        console.log('\n📊 AGENDA ENCONTRADA:');
+        for (const [mes, obrigacoes] of Object.entries(agenda)) {
+          console.log(`  Mês ${mes}: ${obrigacoes.length} obrigações`);
+        }
         break;
         
-      case 'criar-mes':
+      case 'criar':
         const ano = parseInt(args[1]);
         const mes = parseInt(args[2]);
         const email = args[3] || null;
         
-        if (!ano || !mes || mes < 1 || mes > 12) {
-          console.error('❌ Ano e mês são obrigatórios. Mês deve estar entre 1 e 12.');
+        if (!ano || !mes) {
+          console.error('❌ Ano e mês são obrigatórios');
           return;
         }
         
-        await criarTarefasComDadosAtualizados(ano, mes, email);
-        break;
-        
-      case 'testar-conexao':
-        console.log('🔍 Testando conexão com a Receita Federal...');
-        
-        try {
-          const response = await axios.get(RFB_URLS.agendaTributaria, { timeout: 10000 });
-          if (response.status === 200) {
-            console.log('✅ Conexão com RFB: OK');
-          }
-        } catch (error) {
-          console.log('❌ Conexão com RFB: FALHOU');
-          console.log(`   Erro: ${error.message}`);
-        }
-        
-        try {
-          const response = await axios.get('https://brasilapi.com.br/api/feriados/v1/2025', { timeout: 5000 });
-          if (response.status === 200) {
-            console.log('✅ Conexão com BrasilAPI: OK');
-          }
-        } catch (error) {
-          console.log('❌ Conexão com BrasilAPI: FALHOU');
-        }
+        await criarTarefasComScraper(ano, mes, email);
         break;
         
       case 'limpar-cache':
         cacheAgendaTributaria = null;
         cacheExpiry = null;
         console.log('🗑️ Cache limpo com sucesso!');
+        break;
+        
+      case 'ajuda':
+      case 'help':
+        console.log(`
+🔍 SCRAPER DA AGENDA TRIBUTÁRIA
+==============================
+
+Este script extrai informações diretamente do site da Receita Federal.
+
+Funcionalidades:
+- Extração automática de obrigações tributárias
+- Cache local para reduzir requisições
+- Backup automático dos dados
+- Criação de tarefas no sistema
+- Detecção de tarefas duplicadas
+
+Vantagens:
+✅ Dados sempre atualizados
+✅ Extração inteligente de datas
+✅ Backup e cache automáticos
+✅ Integração com sistema de tarefas
+        `);
         break;
         
       default:
@@ -632,6 +446,7 @@ if (require.main === module) {
 
 module.exports = {
   buscarAgendaTributariaRFB,
-  atualizarAgendaTributaria,
-  criarTarefasComDadosAtualizados
+  criarTarefasComScraper,
+  salvarBackupAgenda,
+  carregarBackupAgenda
 };

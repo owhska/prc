@@ -27,7 +27,7 @@ const Calendario = () => {
   const [selectedTask, setSelectedTask] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [activeView, setActiveView] = useState("home");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [filters, setFilters] = useState({
     status: "todos",
     colaborador: "todos",
@@ -65,7 +65,7 @@ const Calendario = () => {
   const [expandedMonths, setExpandedMonths] = useState({});
 
   // Estados para Sistema Automatizado de Agenda Tributária
-  const [modoAvancado, setModoAvancado] = useState(false);
+  const [modoAvancado, setModoAvancado] = useState(true); // Mudança: inicializa como true (padrão)
   const [sistemaAtualizado, setSistemaAtualizado] = useState(false);
   const [obrigacoesCompletas, setObrigacoesCompletas] = useState([]);
   const [loadingObrigacoesAtualizadas, setLoadingObrigacoesAtualizadas] = useState(false);
@@ -138,24 +138,24 @@ const Calendario = () => {
     }
   }, [user]);
 
+  // Função para buscar tarefas - movida para fora do useEffect para poder ser reutilizada
+  const fetchTasks = async () => {
+    try {
+      const tasksData = await taskService.getAll();
+      const formattedTasks = tasksData.map(task => ({
+        ...task,
+        dataVencimento: new Date(task.dataVencimento),
+        dataCriacao: new Date(task.dataCriacao),
+        comprovantes: task.comprovantes || [],
+      }));
+      setTasks(formattedTasks);
+    } catch (error) {
+      console.error("Erro ao buscar tarefas:", error);
+    }
+  };
+
   useEffect(() => {
     if (!currentUser) return;
-    
-    const fetchTasks = async () => {
-      try {
-        const tasksData = await taskService.getAll();
-        const formattedTasks = tasksData.map(task => ({
-          ...task,
-          dataVencimento: new Date(task.dataVencimento),
-          dataCriacao: new Date(task.dataCriacao),
-          comprovantes: task.comprovantes || [],
-        }));
-        setTasks(formattedTasks);
-      } catch (error) {
-        console.error("Erro ao buscar tarefas:", error);
-      }
-    };
-    
     fetchTasks();
   }, [currentUser]);
 
@@ -1017,10 +1017,14 @@ const Calendario = () => {
                     onClick={() => dayTasks.length > 0 && setSelectedTask(dayTasks[0])}
                   >
                     <div className="text-sm font-medium mb-1">{day.getDate()}</div>
-                    <div className="space-y-1">
+                    <div className="space-y-1 overflow-hidden">
                       {dayTasks.slice(0, 2).map((task) => (
-                        <div key={task.id} className={`text-xs p-1 rounded truncate ${statusColors[task.status]}`}>
-                          {task.titulo}
+                        <div 
+                          key={task.id} 
+                          className={`text-xs p-1 rounded truncate ${statusColors[task.status]}`}
+                          title={task.titulo}
+                        >
+                          {task.titulo.length > 20 ? task.titulo.substring(0, 20) + '...' : task.titulo}
                         </div>
                       ))}
                       {dayTasks.length > 2 && (
@@ -1043,14 +1047,14 @@ const Calendario = () => {
                   const homePagination = getPaginationData(getFilteredTasks(), currentHomePage, tasksPerPage);
                   return homePagination.currentItems.map((task) => (
                     <div key={task.id} className="border rounded-lg p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-800">{task.titulo}</h4>
-                          <p className="text-sm text-gray-600 mt-1">Responsável: {task.responsavel}</p>
-                          <p className="text-sm text-gray-600">Vencimento: {task.dataVencimento ? new Date(task.dataVencimento).toLocaleDateString("pt-BR") : "Data não definida"}</p>
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-gray-800 truncate" title={task.titulo}>{task.titulo}</h4>
+                          <p className="text-sm text-gray-600 mt-1 truncate">Responsável: {task.responsavel}</p>
+                          <p className="text-sm text-gray-600 truncate">Vencimento: {task.dataVencimento ? new Date(task.dataVencimento).toLocaleDateString("pt-BR") : "Data não definida"}</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${statusColors[task.status]}`}>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium border ${statusColors[task.status]} whitespace-nowrap`}>
                             {statusIcons[task.status]}
                             <span className="ml-1">{statusLabels[task.status]}</span>
                           </span>
@@ -1578,12 +1582,37 @@ const Calendario = () => {
       setLoadingObrigacoesAtualizadas(true);
       setAgendaError(null);
       
-      const response = await agendaTributariaService.getObrigacoesCompletas();
-      setObrigacoesCompletas(response.obrigacoesPorMes || response.data || []);
-      setSistemaAtualizado(true);
+      console.log('[FRONTEND] Iniciando busca de obrigações atualizadas...');
+      
+      // Primeiro, tenta buscar as obrigações completas via API
+      const responseCompletas = await agendaTributariaService.getObrigacoesCompletas();
+      console.log('[FRONTEND] Resposta das obrigações completas:', responseCompletas);
+      
+      if (responseCompletas && responseCompletas.obrigacoesPorMes && responseCompletas.obrigacoesPorMes.length > 0) {
+        setObrigacoesCompletas(responseCompletas.obrigacoesPorMes);
+        setSistemaAtualizado(true);
+        console.log('[FRONTEND] ✅ Obrigações completas carregadas com sucesso!');
+        console.log('[FRONTEND] Total de meses:', responseCompletas.obrigacoesPorMes.length);
+        console.log('[FRONTEND] Total de obrigações:', responseCompletas.totalObrigacoes);
+      } else {
+        // Se não conseguir as obrigações completas, tenta buscar atualizações
+        console.log('[FRONTEND] Tentando buscar atualizações...');
+        const responseAtualizacoes = await agendaTributariaService.buscarAtualizacoes();
+        console.log('[FRONTEND] Resposta das atualizações:', responseAtualizacoes);
+        
+        if (responseAtualizacoes && responseAtualizacoes.obrigacoesPorMes) {
+          setObrigacoesCompletas(responseAtualizacoes.obrigacoesPorMes);
+          setSistemaAtualizado(true);
+          console.log('[FRONTEND] ✅ Atualizações carregadas com sucesso!');
+        } else {
+          throw new Error('Não foi possível carregar dados atualizados');
+        }
+      }
     } catch (error) {
-      console.error('Erro ao buscar obrigações atualizadas:', error);
-      setAgendaError(error.response?.data?.error || 'Erro ao buscar obrigações atualizadas');
+      console.error('[FRONTEND] ❌ Erro ao buscar obrigações atualizadas:', error);
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Erro ao buscar obrigações atualizadas';
+      setAgendaError(errorMessage);
+      setSistemaAtualizado(false);
     } finally {
       setLoadingObrigacoesAtualizadas(false);
     }
@@ -2093,11 +2122,10 @@ const Calendario = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       <div
-        className={`sidebar bg-white border-r transition-all duration-300 flex flex-col ${
-          sidebarCollapsed ? "w-17" : "w-64"
+        className={`sidebar bg-white border-r transition-all duration-300 flex flex-col flex-shrink-0 ${
+          sidebarCollapsed ? "w-20" : "w-64"
         }`}
       >
-        <div className={`sidebar bg-white border-r transition-all duration-300 flex flex-col ${sidebarCollapsed ? "w-20" : "w-64"}`}>
   <div className="sidebar-header p-3">
     {!sidebarCollapsed && (
       <div className="flex items-center gap-2">
@@ -2154,9 +2182,9 @@ const Calendario = () => {
       </button>
     )}
   </div>
-</div> </div>
+</div>
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         <header className="bg-white border-b px-6 py-4">
           <div className="flex items-center justify-between">
             <div>

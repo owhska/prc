@@ -9,7 +9,7 @@ if (!fs.existsSync(dataDir)) {
 }
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(UploadsDir, { recursive: true });
+    fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 const dbPath = path.join(dataDir, 'pcp.db');

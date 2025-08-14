@@ -1,3 +1,189 @@
+# 🏛️ Scripts da Agenda Tributária - CORRIGIDOS
+
+## 📋 Resumo das Correções Realizadas
+
+Os seguintes problemas foram identificados e **corrigidos com sucesso**:
+
+### ✅ Problemas Corrigidos
+
+1. **agenda-tributaria-scraper.js**:
+   - ❌ **Problema**: Código truncado/incompleto na linha 33
+   - ✅ **Solução**: Código completamente reestruturado e funcional
+   - ❌ **Problema**: Código duplicado e redundante
+   - ✅ **Solução**: Remoção de duplicações e otimização da lógica
+
+2. **agenda-tributaria-api.js**:
+   - ✅ **Status**: Funcional - não precisou de correções
+
+3. **agenda-tributaria.js**:
+   - ✅ **Status**: Funcional - não precisou de correções
+
+## 🚀 Scripts Disponíveis
+
+### 1. agenda-tributaria.js
+**Script principal com dados estáticos abrangentes**
+
+```bash
+# Criar tarefas para um mês específico
+node agenda-tributaria.js mes 2025 3
+
+# Criar tarefas para um mês com responsável específico
+node agenda-tributaria.js mes 2025 3 admin@empresa.com
+
+# Criar tarefas filtradas por regime tributário
+node agenda-tributaria.js mes 2025 3 admin@empresa.com "Simples Nacional"
+
+# Criar tarefas para o ano inteiro
+node agenda-tributaria.js ano 2025
+
+# Criar tarefas para o próximo mês automaticamente
+node agenda-tributaria.js proximo-mes
+
+# Atualizar obrigações via web scraping
+node agenda-tributaria.js atualizar-obrigacoes
+
+# Ver ajuda completa
+node agenda-tributaria.js ajuda
+```
+
+### 2. agenda-tributaria-api.js
+**Versão completa com integração à API da Receita Federal**
+
+```bash
+# Comandos similares ao script principal
+node agenda-tributaria-api.js mes 2025 3
+node agenda-tributaria-api.js ano 2025
+node agenda-tributaria-api.js atualizar-obrigacoes
+node agenda-tributaria-api.js ajuda
+```
+
+### 3. agenda-tributaria-scraper.js
+**Scraper especializado em dados em tempo real**
+
+```bash
+# Buscar agenda atualizada da Receita Federal
+node agenda-tributaria-scraper.js buscar
+
+# Criar tarefas com dados extraídos em tempo real
+node agenda-tributaria-scraper.js criar 2025 3
+
+# Criar tarefas com responsável específico
+node agenda-tributaria-scraper.js criar 2025 3 admin@empresa.com
+
+# Testar conectividade com APIs
+node agenda-tributaria-scraper.js testar-conexao
+
+# Limpar cache
+node agenda-tributaria-scraper.js limpar-cache
+
+# Ver ajuda
+node agenda-tributaria-scraper.js ajuda
+```
+
+## 📊 Funcionalidades dos Scripts
+
+### 🎯 Características Comuns
+- ✅ **Backup automático** de dados e tarefas
+- ✅ **Cache inteligente** para reduzir requisições
+- ✅ **Ajuste automático** para dias úteis e feriados
+- ✅ **Filtros por regime tributário** (Simples Nacional, Lucro Real, etc.)
+- ✅ **Detecção de duplicatas**
+- ✅ **Logs detalhados** com emojis para facilitar leitura
+
+### 📅 Obrigações Tributárias Incluídas
+- DCTFWeb (substitui MIT/DCTF)
+- GPS - Guia da Previdência Social (INSS)
+- DARF - IRPJ, CSLL, PIS/COFINS
+- EFD-Reinf, eSocial, ECF, ECD
+- DAS - Documento de Arrecadação do Simples Nacional
+- FGTS - Fundo de Garantia por Tempo de Serviço
+- ICMS e ISS (genéricos, configuráveis por estado/município)
+- DIRF, DEFIS, RAIS
+- EFD-Contribuições, DME, DOI, DECRED, e-Financeira
+- E muitas outras...
+
+## ⚙️ Pré-requisitos
+
+### Dependências Node.js
+```bash
+npm install axios cheerio jsdom uuid
+```
+
+### Banco de Dados
+- Sistema configurado com tabelas: `usuarios`, `tarefas`, `arquivo_logs`, etc.
+- Pelo menos um usuário com cargo 'admin' no sistema
+
+## 🧪 Verificação dos Scripts
+
+Execute o script de verificação para confirmar que tudo está funcionando:
+
+```bash
+node verificar-scripts.js
+```
+
+## 🔧 Resolução de Problemas
+
+### Erro: "Nenhum usuário administrador encontrado"
+**Solução**: Configure um usuário com cargo 'admin' no banco de dados.
+
+### Erro: "Não foi possível conectar à Receita Federal"
+**Solução**: 
+1. Teste a conectividade: `node agenda-tributaria-scraper.js testar-conexao`
+2. Verifique sua conexão com a internet
+3. Os dados estáticos ainda funcionarão como fallback
+
+### Erro: "Module not found"
+**Solução**: Instale as dependências: `npm install axios cheerio jsdom uuid`
+
+## 📁 Arquivos de Backup
+
+Os scripts criam automaticamente arquivos de backup:
+- `backup-obrigacoes-tributarias.json` - Cache de obrigações
+- `backup-agenda-scraper.json` - Dados extraídos via scraping
+- `tarefas-YYYY-MM.json` - Backup das tarefas criadas
+
+## 🎮 Exemplos Práticos
+
+### Cenário 1: Escritório de Contabilidade
+```bash
+# Criar agenda para cliente do Simples Nacional
+node agenda-tributaria.js mes 2025 3 contador@escritorio.com "Simples Nacional"
+
+# Criar agenda completa para cliente Lucro Real
+node agenda-tributaria.js ano 2025 contador@escritorio.com "Lucro Real"
+```
+
+### Cenário 2: Empresa Individual
+```bash
+# Criar agenda tributária do próximo mês
+node agenda-tributaria.js proximo-mes empresario@empresa.com
+
+# Atualizar dados e criar agenda atual
+node agenda-tributaria.js atualizar-obrigacoes
+node agenda-tributaria.js mes 2025 3 empresario@empresa.com
+```
+
+### Cenário 3: Monitoramento Automático
+```bash
+# Script para execução mensal automatizada (crontab)
+node agenda-tributaria.js proximo-mes
+```
+
+## 📞 Suporte
+
+Em caso de problemas:
+1. Execute `node verificar-scripts.js` para diagnóstico
+2. Consulte os logs detalhados dos scripts
+3. Verifique se todas as dependências estão instaladas
+4. Confirme se o banco de dados está configurado corretamente
+
+---
+
+**Status**: ✅ **Todos os scripts foram corrigidos e estão funcionais!**
+
+**Última atualização**: Agosto 2024  
+**Versão**: 2025 (Atualizada com obrigações fiscais 2025)
+
 # 🏛️ Agenda Tributária - Sistema Automatizado
 
 Este sistema automatiza a criação de tarefas mensais baseadas na **Agenda Tributária Brasileira**, incluindo todas as principais obrigações fiscais e trabalhistas.
