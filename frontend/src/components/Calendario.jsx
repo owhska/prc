@@ -64,8 +64,8 @@ const Calendario = () => {
   const [showObrigacoes, setShowObrigacoes] = useState(false);
   const [expandedMonths, setExpandedMonths] = useState({});
 
-  // Estados para Sistema Automatizado de Agenda Tributária
-  const [modoAvancado, setModoAvancado] = useState(true); // Mudança: inicializa como true (padrão)
+  // Estados para Sistema Automatizado de Agenda Tributária (único sistema disponível)
+  const [modoAvancado, setModoAvancado] = useState(true); // Sistema automatizado é o padrão e único
   const [sistemaAtualizado, setSistemaAtualizado] = useState(false);
   const [obrigacoesCompletas, setObrigacoesCompletas] = useState([]);
   const [loadingObrigacoesAtualizadas, setLoadingObrigacoesAtualizadas] = useState(false);
@@ -1707,71 +1707,66 @@ const Calendario = () => {
 
     return (
       <div className="flex-1 p-6">
-        <div className="max-w-6xl mx-auto">
-          {/* Seleção do Modo */}
-          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Modo de Operação</h2>
-            
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-8 space-y-4 sm:space-y-0 bg-gray-50 p-4 rounded-lg shadow-sm">
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="modoAgenda"
-                    checked={!modoAvancado}
-                    onChange={() => {
-                      setModoAvancado(false);
-                      setSistemaAtualizado(false);
-                      setAgendaError(null);
-                      setAgendaResultado(null);
-                    }}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
-                  />
-                  <span className="ml-3 text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors duration-200">
-                    Sistema Básico (Dados Estáticos)
-                  </span>
-                </label>
-                
-                <label className="flex items-center cursor-pointer">
-                  <input
-                    type="radio"
-                    name="modoAgenda"
-                    checked={modoAvancado}
-                    onChange={() => {
-                      setModoAvancado(true);
-                      setAgendaError(null);
-                      setAgendaResultado(null);
-                    }}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500"
-                  />
-                  <span className="ml-3 text-sm font-semibold text-gray-700 group-hover:text-blue-600 transition-colors duration-200">
-                    Sistema Automatizado (Dados da API)
-                  </span>
-                </label>
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Header com status do sistema */}
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <RefreshCw className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Agenda Tributária</h2>
+                  <p className="text-gray-600">Sistema automatizado com dados atualizados da API</p>
+                </div>
               </div>
-              
-              <div className="text-sm text-gray-600">
-                {!modoAvancado ? (
-                  <p> 📍 Utiliza dados estáticos predefinidos para as obrigações tributárias.</p>
-                ) : (
-                  <p> 📍 Utiliza dados atualizados da API para criar tarefas mais precisas e detalhadas.</p>
-                )}
+              <div className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                sistemaAtualizado 
+                  ? 'bg-green-100 text-green-800' 
+                  : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {sistemaAtualizado ? '✅ Sistema Atualizado' : '⏳ Aguardando Dados'}
               </div>
             </div>
+            
+            {!sistemaAtualizado && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-800 font-medium">Primeiro passo: Buscar obrigações atualizadas</p>
+                    <p className="text-blue-600 text-sm">Carregue os dados mais recentes da API para criar tarefas precisas</p>
+                  </div>
+                  <button
+                    onClick={buscarObrigacoesAtualizadas}
+                    disabled={loadingObrigacoesAtualizadas}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors font-medium"
+                  >
+                    {loadingObrigacoesAtualizadas ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                    {loadingObrigacoesAtualizadas ? 'Carregando...' : 'Buscar Dados'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Configurações */}
-          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">Configurações</h2>
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
+              Configurações
+            </h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Ano</label>
                 <select
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  style={{ maxHeight: '200px', overflowY: 'auto' }}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 >
                   {getYearOptions().map(year => (
                     <option key={year} value={year}>{year}</option>
@@ -1784,7 +1779,7 @@ const Calendario = () => {
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
                 >
                   {Array.from({ length: 12 }, (_, i) => (
                     <option key={i + 1} value={i + 1}>
@@ -1803,145 +1798,93 @@ const Calendario = () => {
                   value={responsavelEmail}
                   onChange={(e) => setResponsavelEmail(e.target.value)}
                   placeholder="admin@empresa.com"
-                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Se vazio, será usado o primeiro administrador
+                  Deixe vazio para usar o primeiro administrador
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Sistema Automatizado - Buscar Obrigações Atualizadas */}
-          {modoAvancado && (
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-sm border border-blue-200 p-6 mb-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <RefreshCw className="w-5 h-5 text-blue-600" />
-                Sistema Automatizado
-              </h2>
-              
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-white rounded-lg border">
-                  <div>
-                    <h3 className="font-medium text-gray-900">Status do Sistema</h3>
-                    <p className="text-sm text-gray-600">
-                      {sistemaAtualizado ? "✅ Dados atualizados carregados" : "⏳ Dados não atualizados"}
-                    </p>
-                  </div>
-                  <button
-                    onClick={buscarObrigacoesAtualizadas}
-                    disabled={loadingObrigacoesAtualizadas}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
-                  >
-                    {loadingObrigacoesAtualizadas ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
-                    )}
-                    {loadingObrigacoesAtualizadas ? "Atualizando..." : "Buscar Obrigações Atualizadas"}
-                  </button>
-                </div>
-                
-                {sistemaAtualizado && obrigacoesCompletas.length > 0 && (
-                  <div className="bg-white rounded-lg border p-4">
-                    <h4 className="font-medium text-gray-900 mb-2">Dados Carregados</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium text-gray-700">Total de Obrigações:</span>
-                        <span className="ml-2 text-blue-600 font-bold">{obrigacoesCompletas.length}</span>
-                      </div>
-                      <div>
-                        <span className="font-medium text-gray-700">Última Atualização:</span>
-                        <span className="ml-2 text-gray-600">{new Date().toLocaleString('pt-BR')}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Ações */}
-          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-800 mb-4">
-              {modoAvancado ? "Ações Automatizadas" : "Ações Básicas"}
-            </h2>
+          {/* Ações Principais */}
+          <div className="bg-white rounded-xl shadow-sm border p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+              Ações
+            </h3>
             
-            {!modoAvancado ? (
-              // Botões do sistema básico
-              <div className="flex flex-wrap gap-4">
-                <button
-                  onClick={criarTarefasMes}
-                  disabled={agendaLoading}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                  {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  Criar Tarefas do Mês ({getMonthName(selectedMonth)}/{selectedYear})
-                </button>
-
-                <button
-                  onClick={criarTarefasAno}
-                  disabled={agendaLoading}
-                  className="bg-blue-600 hover:bg-green-700 disabled:bg-green-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                  {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Calendar className="w-4 h-4" />}
-                  Criar Ano Completo ({selectedYear})
-                </button>
-
-                <button
-                  onClick={criarTarefasProximoMes}
-                  disabled={agendaLoading}
-                  className="bg-blue-600 hover:bg-purple-700 disabled:bg-purple-400 text-balck px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                  {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
-                  Criar Próximo Mês
-                </button>
-
-                <button
-                  onClick={() => setShowObrigacoes(!showObrigacoes)}
-                  className="bg-blue-600 hover:bg-gray-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
-                >
-                  <Eye className="w-4 h-4" />
-                  Ver Obrigações
-                </button>
-              </div>
-            ) : (
-              // Botões do sistema automatizado
-              <div className="space-y-4">
-                <div className="flex flex-wrap gap-4">
-                  <button
-                    onClick={criarTarefasMesAutomatizado}
-                    disabled={agendaLoading || !sistemaAtualizado}
-                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
-                  >
-                    {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    Criar Tarefas Automatizadas - Mês ({getMonthName(selectedMonth)}/{selectedYear})
-                  </button>
-
-                  <button
-                    onClick={criarTarefasAnoAutomatizado}
-                    disabled={agendaLoading || !sistemaAtualizado}
-                    className="bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-black px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
-                  >
-                    {agendaLoading ? <Loader2 className="w-4 h-4 animate-spin text-black" /> : <Calendar className="w-4 h-4 text-black" />}
-                    Criar Ano Automatizado ({selectedYear})
-                  </button>
-                </div>
-                
-                {!sistemaAtualizado && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5 text-yellow-600" />
-                      <span className="font-medium text-yellow-800">Atenção</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <button
+                onClick={criarTarefasMesAutomatizado}
+                disabled={agendaLoading || !sistemaAtualizado}
+                className="p-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white rounded-lg transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  {agendaLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Plus className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  )}
+                  <div className="text-left">
+                    <div className="font-semibold">Criar Mês</div>
+                    <div className="text-sm opacity-90">
+                      {getMonthName(selectedMonth)}/{selectedYear}
                     </div>
-                    <p className="text-yellow-700 mt-1">
-                      Para usar o sistema automatizado, primeiro busque as obrigações atualizadas.
-                    </p>
                   </div>
-                )}
+                </div>
+              </button>
+
+              <button
+                onClick={criarTarefasAnoAutomatizado}
+                disabled={agendaLoading || !sistemaAtualizado}
+                className="p-4 bg-blue-600 hover:bg-green-700 disabled:bg-gray-300 text-white rounded-lg transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  {agendaLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Calendar className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  )}
+                  <div className="text-left">
+                    <div className="font-semibold">Criar Ano Completo</div>
+                    <div className="text-sm opacity-90">
+                      {selectedYear} (12 meses)
+                    </div>
+                  </div>
+                </div>
+              </button>
+            </div>
+            
+            {!sistemaAtualizado && (
+              <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Busque os dados atualizados primeiro</span>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Informações do sistema quando atualizado */}
+          {sistemaAtualizado && obrigacoesCompletas.length > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                <span className="font-medium text-green-800">Sistema Pronto</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-green-700">Obrigações carregadas:</span>
+                  <span className="ml-2 font-bold text-green-800">{obrigacoesCompletas.length}</span>
+                </div>
+                <div>
+                  <span className="text-green-700">Última atualização:</span>
+                  <span className="ml-2 font-bold text-green-800">{new Date().toLocaleString('pt-BR')}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Resultado */}
           {agendaResultado && (
@@ -2126,63 +2069,85 @@ const Calendario = () => {
           sidebarCollapsed ? "w-20" : "w-64"
         }`}
       >
-  <div className="sidebar-header p-3">
-    {!sidebarCollapsed && (
-      <div className="flex items-center gap-2">
-        <Calendar className="w-5 h-5 text-blue-600" aria-hidden="true" />
-        <h1 className="text-lg font-semibold text-gray-800">Sistema de Tarefas</h1>
-      </div>
-    )}
-  </div>
-  <nav className="sidebar-nav flex-1">
-    {menuItems.map((item) => {
-      const Icon = item.icon;
-      return (
-        <button
-          key={item.id}
-          onClick={() => setActiveView(item.id)}
-          className={`w-full flex items-center justify-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors ${
-            activeView === item.id
-              ? "bg-blue-50 text-blue-600 border-r-2 border-blue-600"
-              : "text-gray-700"
-          }`}
-          title={sidebarCollapsed ? item.label : ""}
-          aria-label={item.label}
-        >
-          <Icon className="w-5 h-5 flex-shrink-0" aria-hidden="true" />
+        {/* Header da Sidebar */}
+        <div className="sidebar-header p-4 border-b border-gray-100">
           {!sidebarCollapsed && (
-            <div className="flex flex-col justify-center">
-              <span className="font-medium text-sm leading-5">{item.label}</span>
-              <span className="text-xs text-gray-500 leading-4">{item.description}</span>
+            <div className="flex items-center gap-3">
+              <div className="p-1 bg-blue-100 rounded-lg">
+                <Calendar className="w-5 h-5 text-blue-600" aria-hidden="true" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-gray-900">Sistema de Tarefas</h1>
+
+              </div>
             </div>
           )}
-        </button>
-      );
-    })}
-  </nav>
-  <div className="p-4">
-    {!sidebarCollapsed && (
-      <button
-        onClick={minimizeSidebar}
-        className="w-full flex items-center justify-center p-2 hover:bg-gray-100 rounded-lg transition-colors"
-        title="Minimizar Sidebar"
-        aria-label="Minimizar Sidebar"
-      >
-        <X className="w-6 h-6 text-gray-700" aria-hidden="true" />
-      </button>
-    )}
-    {sidebarCollapsed && (
-      <button
-        onClick={maximizeSidebar}
-        className="w-full flex items-center justify-center p-2 bg-white shadow-md hover:bg-gray-100 rounded-lg transition-colors"
-        title="Maximizar Sidebar"
-        aria-label="Maximizar Sidebar"
-      >
-        <Maximize2 className="w-6 h-6 text-gray-600" aria-hidden="true" />
-      </button>
-    )}
-  </div>
-</div>
+          {sidebarCollapsed && (
+            <div className="flex justify-center">
+              
+            </div>
+          )}
+        </div>
+
+        {/* Navegação */}
+        <nav className="sidebar-nav flex-1 py-2">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveView(item.id)}
+                className={`w-full flex items-center gap-3 mx-0 px-3 py-3 rounded-lg text-left transition-all duration-200 group ${
+                  activeView === item.id
+                    ? "bg-blue-50 text-blue-700 shadow-sm border border-blue-100"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                }`}
+                title={sidebarCollapsed ? item.label : ""}
+                aria-label={item.label}
+              >
+                <div className={`p-1.5 rounded-md transition-colors ${
+                  activeView === item.id
+                    ? ""
+                    : "text-gray-500 group-hover:bg-gray-100 group-hover:text-gray-700"
+                }`}>
+                  <Icon className="w-4 h-4" aria-hidden="true" />
+                </div>
+                {!sidebarCollapsed && (
+                  <div className="flex flex-col justify-center min-w-0 flex-1">
+                    <span className="font-medium text-sm truncate">{item.label}</span>
+                    <span className="text-xs opacity-75 truncate">{item.description}</span>
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Footer da Sidebar */}
+        <div className="p-4 border-t border-gray-100">
+          {!sidebarCollapsed && (
+            <button
+              onClick={minimizeSidebar}
+              className="w-full flex items-center justify-center gap-2 p-2.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors text-sm"
+              title="Minimizar Sidebar"
+              aria-label="Minimizar Sidebar"
+            >
+              <X className="w-4 h-4" aria-hidden="true" />
+              <span></span>
+            </button>
+          )}
+          {sidebarCollapsed && (
+            <button
+              onClick={maximizeSidebar}
+              className="w-full flex items-center justify-center p-2.5 text-gray-600 hover:text-gray-900 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors shadow-sm"
+              title="Maximizar Sidebar"
+              aria-label="Maximizar Sidebar"
+            >
+              <Maximize2 className="w-4 h-4" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="bg-white border-b px-6 py-4">
