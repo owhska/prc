@@ -2298,7 +2298,7 @@ const Calendario = () => {
 
         {showTaskDetails && selectedTask && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[55vh] overflow-y-auto mx-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-sm max-h-sm overflow-y-auto mx-4">
               <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
                 <div className="flex items-center gap-3">
                   <div className={`p-1.5 rounded-full ${statusColors[selectedTask.status]}`}>
@@ -2716,7 +2716,7 @@ const Calendario = () => {
                   ></textarea>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Recorrente</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1"></label>
                   <input
                     type="checkbox"
                     className="mr-2 leading-tight"
@@ -2760,7 +2760,7 @@ const Calendario = () => {
 
         {showLogoutConfirm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-xs w-full mx-4 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-xs mx-3 p-4">
               <h3 className="text-lg font-semibold text-gray-800 mb-2">Confirmar Logout</h3>
               <p className="text-gray-600 text-sm mb-4 text-center">Tem certeza de que deseja sair?</p>
               <div className="flex justify-center gap-2">
