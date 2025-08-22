@@ -29,8 +29,27 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Configurar CORS para permitir requisições do frontend
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  process.env.FRONTEND_URL, // URL do frontend no Render
+  process.env.RENDER_EXTERNAL_URL // URL do próprio serviço no Render
+].filter(Boolean); // Remove valores undefined/null
+
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173'], // Adicione os URLs do seu frontend (ex.: React, Vite)
+  origin: function (origin, callback) {
+    // Permitir requests sem origin (mobile apps, postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    // Verificar se o origin está na lista de permitidos
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('Origin bloqueado pelo CORS:', origin);
+      console.log('Origins permitidos:', allowedOrigins);
+      callback(new Error('Não permitido pelo CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true // Habilita cookies e cabeçalhos de autenticação, se necessário

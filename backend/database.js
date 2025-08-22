@@ -144,6 +144,27 @@ function initializeDatabase() {
         }
     });
 
+    // 6. Tabela de horas trabalhadas
+    db.run(`
+        CREATE TABLE IF NOT EXISTS horas_trabalhadas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id VARCHAR(255) NOT NULL,
+            user_name VARCHAR(255) NOT NULL,
+            date DATE NOT NULL,
+            total_minutes INTEGER NOT NULL,
+            total_hours VARCHAR(50),
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES usuarios (uid),
+            UNIQUE(user_id, date)
+        )
+    `, (err) => {
+        if (err) {
+            console.error('❌ Erro ao criar tabela horas_trabalhadas:', err.message);
+        } else {
+            console.log('✅ Tabela horas_trabalhadas criada/verificada com sucesso!');
+        }
+    });
+
     console.log('🎉 Inicialização do banco de dados concluída!');
 }
 
@@ -577,6 +598,56 @@ function getActivityLogs(userId = null, limit = 100) {
     });
 }
 
+// Função para inserir ou atualizar horas trabalhadas
+function upsertHorasTrabalhadas(horasData) {
+    return new Promise((resolve, reject) => {
+        const { userId, userName, date, totalMinutes, totalHours } = horasData;
+        
+        const sql = `
+            INSERT OR REPLACE INTO horas_trabalhadas (user_id, user_name, date, total_minutes, total_hours, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `;
+        
+        db.run(sql, [userId, userName, date, totalMinutes, totalHours], function(err) {
+            if (err) {
+                console.error(`❌ Erro ao inserir/atualizar horas trabalhadas para ${userId} em ${date}: ${err.message}`);
+                reject(err);
+            } else {
+                console.log(`✅ Horas trabalhadas para ${userId} em ${date} inseridas/atualizadas com sucesso`);
+                resolve({ 
+                    id: this.lastID || this.changes, 
+                    userId, 
+                    userName, 
+                    date, 
+                    totalMinutes, 
+                    totalHours 
+                });
+            }
+        });
+    });
+}
+
+// Função para buscar horas trabalhadas por usuário e período
+function getHorasTrabalhadasByUserAndPeriod(userId, startDate, endDate) {
+    return new Promise((resolve, reject) => {
+        const sql = `
+            SELECT * FROM horas_trabalhadas 
+            WHERE user_id = ? AND date >= ? AND date < ?
+            ORDER BY date ASC
+        `;
+        
+        db.all(sql, [userId, startDate, endDate], (err, rows) => {
+            if (err) {
+                console.error(`❌ Erro ao buscar horas trabalhadas para usuário ${userId}: ${err.message}`);
+                reject(err);
+            } else {
+                console.log(`✅ Encontradas ${rows.length} entradas de horas trabalhadas para ${userId}`);
+                resolve(rows);
+            }
+        });
+    });
+}
+
 module.exports = {
     db,
     insertFile,
@@ -600,5 +671,7 @@ module.exports = {
     deleteTask,
     insertActivityLog,
     getActivityLog: getActivityLogs,
-    checkTaskExists
+    checkTaskExists,
+    upsertHorasTrabalhadas,
+    getHorasTrabalhadasByUserAndPeriod
 };

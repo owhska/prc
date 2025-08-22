@@ -20,10 +20,16 @@
   },
   "name": "backend",
   "version": "1.0.0",
-  "main": "firebase-admin.js",
+  "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "build": "echo \"Backend não precisa de build\""
+  },
+  "engines": {
+    "node": "18.x",
+    "npm": "9.x"
   },
   "keywords": [],
   "author": "",

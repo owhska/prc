@@ -9,9 +9,19 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Configurar axios com base URL
+  // Configurar axios com base URL dinâmica
+  const getBaseURL = () => {
+    // Em produção, usar variável de ambiente ou detectar automaticamente
+    if (process.env.NODE_ENV === 'production') {
+      // URL do backend no Render - será configurada via variável de ambiente
+      return process.env.REACT_APP_API_URL || window.location.origin + '/api';
+    }
+    // Em desenvolvimento, usar localhost
+    return 'http://localhost:3001/api';
+  };
+
   const api = axios.create({
-    baseURL: 'http://localhost:3001/api',
+    baseURL: getBaseURL(),
     headers: {
       'Content-Type': 'application/json'
     }
