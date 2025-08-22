@@ -3,20 +3,20 @@
 ## 📋 Problemas Identificados e Soluções
 
 ### ❌ Problemas Anteriores:
-1. **CORS restritivo**: Backend só aceitava localhost
-2. **URLs hardcoded**: Frontend apontava apenas para localhost:3001
-3. **Configuração de ambiente**: Sem variáveis dinâmicas
-4. **Scripts inadequados**: package.json não otimizado para produção
-5. **Versão Node.js**: Render usava versão incorreta (22.x em vez de 18.x)
-6. **Yarn vs NPM**: Comandos incompatíveis com gerenciador de pacotes
+1. **"Command 'start' not found"**: package.json raiz sem scripts
+2. **"vite: not found"**: dependências instaladas no lugar errado
+3. **Node.js compatibility**: versão restrita < 21 (incompatível com v22)
+4. **Yarn não disponível**: sistema usando npm mas scripts em yarn
+5. **Port binding**: não configurado para 0.0.0.0 (obrigatório no Render)
+6. **Core dumps**: problemas de compatibilidade entre yarn/npm
 
-### ✅ Soluções Implementadas:
-1. **CORS dinâmico**: Agora aceita domínios do Render via variáveis de ambiente
-2. **URLs configuráveis**: Frontend detecta ambiente automaticamente
-3. **Banco SQLite otimizado**: Configurado para criar diretórios automaticamente
-4. **Scripts de produção**: package.json otimizado para ambos os serviços
-5. **Versão Node.js fixada**: Arquivos .node-version e .nvmrc forçam Node 18.18.0
-6. **Yarn configurado**: render.yaml e package.json otimizados para yarn
+### ✅ Soluções Implementadas (MAIS RECENTES):
+1. **Scripts corrigidos**: package.json raiz com script "start" funcional
+2. **NPM em vez de Yarn**: Convertido para usar npm (disponível no sistema)
+3. **Node.js 22+ support**: Removida restrição de versão < 21
+4. **Port binding dinâmico**: Script start.js que usa PORT do ambiente
+5. **Host correto**: Configurado para 0.0.0.0 (obrigatório no Render)
+6. **Estrutura monorepo**: Root delega para frontend corretamente
 
 ## 🔧 Configuração no Render
 
@@ -26,15 +26,15 @@
 3. O arquivo `render.yaml` será detectado automaticamente
 4. Configure as variáveis de ambiente no dashboard
 
-### Opção 2: Configuração Manual
+### Opção 2: Configuração Manual (ATUALIZADA)
 
-#### Backend Service:
+#### Para Monorepo (Frontend como Web Service):
 - **Type**: Web Service
-- **Name**: calendario-backend
+- **Name**: calendario-app
 - **Runtime**: Node
-- **Build Command**: `yarn install`
-- **Start Command**: `yarn start`
-- **Root Directory**: `backend`
+- **Build Command**: `npm run build`
+- **Start Command**: `npm start`
+- **Root Directory**: `/` (raiz do projeto)
 
 **Environment Variables:**
 ```

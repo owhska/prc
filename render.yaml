@@ -1,33 +1,17 @@
 services:
-  # Backend Service
+  # Frontend como Web Service (recomendado para monorepo)
   - type: web
-    name: calendario-backend
+    name: calendario-app
     runtime: node
     plan: free
-    buildCommand: yarn install
-    startCommand: yarn start
-    healthCheckPath: /api/health
+    buildCommand: npm run build
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000
-      - key: FRONTEND_URL
-        sync: false # Será definido manualmente no dashboard
-    rootDir: backend
-
-  # Frontend Service (como static site)
-  - type: static
-    name: calendario-frontend
-    buildCommand: yarn install && yarn build
-    staticPublishPath: dist
-    pullRequestPreviewsEnabled: false
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: REACT_APP_API_URL
-        sync: false # Será definido manualmente no dashboard
-    rootDir: frontend
+        generateValue: true # Render define automaticamente
+    # rootDir não especificado = usa raiz do projeto
 
 # Alternativa: apenas backend como web service
 # (frontend pode ser servido pelo próprio backend)
