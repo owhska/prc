@@ -1,19 +1,8 @@
+# Configuração minimalista para evitar conflitos yarn/npm
 services:
-  # Frontend como Web Service (recomendado para monorepo)
   - type: web
-    name: calendario-app
-    runtime: node
-    plan: free
-    buildCommand: npm run build
+    name: calendario-frontend
+    runtime: node 
+    rootDir: frontend
+    buildCommand: npm install && npm run build
     startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        generateValue: true # Render define automaticamente
-    # rootDir não especificado = usa raiz do projeto
-
-# Alternativa: apenas backend como web service
-# (frontend pode ser servido pelo próprio backend)
-databases:
-  # SQLite é usado localmente - não precisa de serviço externo

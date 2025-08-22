@@ -1,0 +1,4 @@
+{
+  "error": "This project uses npm, not yarn. Please use npm commands instead.",
+  "solution": "Use 'npm install' instead of 'yarn install' and 'npm run build' instead of 'yarn build'"
+}
