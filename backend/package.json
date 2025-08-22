@@ -28,11 +28,11 @@
     "build": "echo \"Backend não precisa de build\""
   },
   "engines": {
-    "node": ">=18.18.0 <19.0.0",
+    "node": ">=20.0.0 <21.0.0",
     "yarn": "^1.22.0"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "description": ""
 }

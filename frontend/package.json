@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,7 +12,7 @@
     "start": "vite build && vite preview --port 3000 --host"
   },
   "engines": {
-    "node": ">=18.18.0 <19.0.0",
+    "node": ">=20.0.0 <21.0.0",
     "yarn": "^1.22.0"
   },
   "dependencies": {

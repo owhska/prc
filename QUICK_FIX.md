@@ -1,9 +1,9 @@
-# 🚨 CORREÇÃO RÁPIDA - Erro "yarn build not found"
+# 🚨 CORREÇÃO RÁPIDA - Erro de compatibilidade Node.js
 
 ## ⚡ O que foi corrigido:
 
 1. ✅ **render.yaml**: Comandos corrigidos para yarn
-2. ✅ **.node-version**: Forçar Node.js 18.18.0 
+2. ✅ **.node-version**: Forçar Node.js 20.18.0 (compatibilidade react-router-dom)
 3. ✅ **.nvmrc**: Alternativo para versão Node.js
 4. ✅ **package.json**: Engines corrigidos para yarn
 5. ✅ **CORS dinâmico**: Backend aceita domínios do Render
