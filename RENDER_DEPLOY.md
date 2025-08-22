@@ -7,12 +7,16 @@
 2. **URLs hardcoded**: Frontend apontava apenas para localhost:3001
 3. **Configuração de ambiente**: Sem variáveis dinâmicas
 4. **Scripts inadequados**: package.json não otimizado para produção
+5. **Versão Node.js**: Render usava versão incorreta (22.x em vez de 18.x)
+6. **Yarn vs NPM**: Comandos incompatíveis com gerenciador de pacotes
 
 ### ✅ Soluções Implementadas:
 1. **CORS dinâmico**: Agora aceita domínios do Render via variáveis de ambiente
 2. **URLs configuráveis**: Frontend detecta ambiente automaticamente
 3. **Banco SQLite otimizado**: Configurado para criar diretórios automaticamente
 4. **Scripts de produção**: package.json otimizado para ambos os serviços
+5. **Versão Node.js fixada**: Arquivos .node-version e .nvmrc forçam Node 18.18.0
+6. **Yarn configurado**: render.yaml e package.json otimizados para yarn
 
 ## 🔧 Configuração no Render
 
@@ -28,8 +32,8 @@
 - **Type**: Web Service
 - **Name**: calendario-backend
 - **Runtime**: Node
-- **Build Command**: `npm install`
-- **Start Command**: `npm start`
+- **Build Command**: `yarn install`
+- **Start Command**: `yarn start`
 - **Root Directory**: `backend`
 
 **Environment Variables:**
@@ -42,7 +46,7 @@ FRONTEND_URL=https://SEU_FRONTEND_URL.onrender.com
 #### Frontend Service:
 - **Type**: Static Site
 - **Name**: calendario-frontend
-- **Build Command**: `npm install && npm run build`
+- **Build Command**: `yarn install && yarn build`
 - **Publish Directory**: `dist`
 - **Root Directory**: `frontend`
 
@@ -96,6 +100,13 @@ GET https://SEU_FRONTEND_URL.onrender.com
 
 ### ❌ "Arquivo físico não encontrado" (uploads)
 **Solução**: No Render, uploads são temporários. Para produção, use serviços externos como AWS S3
+
+### ❌ "error Command 'build' not found" (Yarn)
+**Problema**: O Render está tentando executar `yarn build` mas o script não existe no package.json
+**Solução**: 
+1. Verifique se o script `"build": "vite build"` existe no `frontend/package.json`
+2. Confirme que o comando no render.yaml é `yarn install && yarn build`
+3. Se ainda não funcionar, use `npm run build` em vez de `yarn build`
 
 ## 📂 Estrutura de Arquivos Importante
 

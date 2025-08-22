@@ -4,8 +4,8 @@ services:
     name: calendario-backend
     runtime: node
     plan: free
-    buildCommand: npm install
-    startCommand: npm start
+    buildCommand: yarn install
+    startCommand: yarn start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
@@ -19,7 +19,7 @@ services:
   # Frontend Service (como static site)
   - type: static
     name: calendario-frontend
-    buildCommand: npm install && npm run build
+    buildCommand: yarn install && yarn build
     staticPublishPath: dist
     pullRequestPreviewsEnabled: false
     envVars:
